@@ -1066,36 +1066,55 @@ function openFeeModal(){
 }
 
 // ── 탭: 시간표 ───────────────────────────────────────────
-function renderCategoryStatCard(){
+function renderCombinedStatCard(){
   const stList=calcStudents();
   const catTotals=CATS.map(c=>({...c,students:stList.filter(s=>s.cat===c.key),total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0)})).filter(c=>c.students.length>0);
   const grand=catTotals.reduce((a,c)=>a+c.total,0);
-  const statCard=D({className:"card"});
-  statCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["📊 분류별 현황"])]));
-  const statTbl=h("table",{className:"stat"});
-  statTbl.appendChild(h("thead",{},[h("tr",{},[h("th",{style:{width:"130px",textAlign:"left"}},["분류"]),h("th",{style:{textAlign:"left"}},["학년별 인원"]),h("th",{style:{textAlign:"right",width:"64px"}},["인원"]),h("th",{style:{textAlign:"right",width:"130px"}},["교습비 합계"]),h("th",{style:{textAlign:"right",width:"150px"}},["비중"])])]));
-  const stb=h("tbody",{});
+  const card=D({className:"card"});
+  card.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["📊 분류별 현황"])]));
+  const tbl=h("table",{className:"stat"});
+  tbl.appendChild(h("thead",{},[h("tr",{},[
+    h("th",{style:{width:"110px",textAlign:"left"}},["분류"]),
+    h("th",{style:{width:"60px",textAlign:"left"}},["학년"]),
+    h("th",{style:{textAlign:"left"}},["학생"]),
+    h("th",{style:{textAlign:"right",width:"100px"}},["교습비"]),
+    h("th",{style:{textAlign:"right",width:"150px"}},["비중"])
+  ])]));
+  const tb=h("tbody",{});
   catTotals.forEach((cat,ci)=>{
-    const cc=CC[cat.key];const gm={};cat.students.forEach(s=>{gm[s.grade]=(gm[s.grade]||0)+1;});
+    const cc=CC[cat.key];
+    const gm={};cat.students.forEach(s=>{if(!gm[s.grade])gm[s.grade]=[];gm[s.grade].push(s);});
+    const grades=Object.keys(gm).sort();
     const pct=grand>0?Math.round(cat.total/grand*100):0;
-    const tr=h("tr",{style:{background:ci%2===0?"#fff":"#fdfaf4"}});
-    tr.appendChild(h("td",{},[Sp({style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`,borderRadius:"6px",padding:"3px 10px",fontWeight:"700",fontSize:"11px"}},[cat.label])]));
-    const gd=D({style:{display:"flex",flexWrap:"wrap",gap:"8px"}});
-    Object.keys(gm).sort().forEach(gr=>gd.appendChild(Sp({},[Sp({style:{color:cc.t,fontWeight:"700",fontSize:"11px"}},[gr]),Sp({style:{color:TS,marginLeft:"2px",fontSize:"11px"}},[gm[gr]+"명"])])));
-    tr.appendChild(h("td",{},[gd]));
-    tr.appendChild(h("td",{style:{textAlign:"right",fontWeight:"800"}},[cat.students.length+"명"]));
-    tr.appendChild(h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"800"}},[cat.total.toLocaleString()+"원"]));
-    const pTd=h("td",{style:{textAlign:"right"}});
-    const pb=D({style:{display:"flex",alignItems:"center",gap:"6px",justifyContent:"flex-end"}});
-    pb.appendChild(D({style:{height:"8px",width:Math.max(4,pct*1.2)+"px",maxWidth:"120px",background:cc.t,borderRadius:"4px"}}));
-    pb.appendChild(Sp({style:{fontSize:"11px",color:TS,minWidth:"30px"}},[pct+"%"]));
-    pTd.appendChild(pb);tr.appendChild(pTd);
-    stb.appendChild(tr);
+    grades.forEach((gr,gi)=>{
+      const lst=gm[gr];const sub=lst.reduce((a,s)=>a+s.monthly,0);
+      const tr=h("tr",{style:{background:ci%2===0?"#fff":"#fdfaf4"}});
+      if(gi===0)tr.appendChild(h("td",{rowspan:String(grades.length),style:{verticalAlign:"top",paddingTop:"12px"}},[Sp({style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`,borderRadius:"6px",padding:"3px 10px",fontWeight:"700",fontSize:"11px"}},[cat.label])]));
+      tr.appendChild(h("td",{style:{whiteSpace:"nowrap"}},[Sp({style:{color:cc.t,fontWeight:"700",fontSize:"12px"}},[gr]),Sp({style:{color:TS,fontSize:"11px",marginLeft:"2px"}},["("+lst.length+"명)"])]));
+      const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"4px"}});
+      lst.forEach(s=>{
+        const isCust=!s.free&&s.fee!==(S.bf[s.cat]||0);
+        const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${isCust?GOLD:cc.bd}`},onClick:()=>openStudentModal(s.name,s.cat,s.grade)});
+        chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
+        chip.appendChild(Sp({style:{fontSize:"10px",color:isCust?GOLD:TS,marginLeft:"2px"}},[s.free?"무료":"주"+s.wc+"회·"+s.monthly.toLocaleString()+"원"+(isCust?" ✎":"")]));
+        chips.appendChild(chip);
+      });
+      tr.appendChild(h("td",{},[chips]));
+      tr.appendChild(h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"700",fontSize:"12px",whiteSpace:"nowrap"}},[sub.toLocaleString()+"원"]));
+      if(gi===0){
+        const pTd=h("td",{rowspan:String(grades.length),style:{textAlign:"right",verticalAlign:"middle"}});
+        const pb=D({style:{display:"flex",alignItems:"center",gap:"6px",justifyContent:"flex-end"}});
+        pb.appendChild(D({style:{height:"8px",width:Math.max(4,pct*1.2)+"px",maxWidth:"120px",background:cc.t,borderRadius:"4px"}}));
+        pb.appendChild(Sp({style:{fontSize:"11px",color:TS,minWidth:"30px"}},[pct+"%"]));
+        pTd.appendChild(pb);tr.appendChild(pTd);
+      }
+      tb.appendChild(tr);
+    });
   });
-  statTbl.appendChild(stb);
-  statTbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{colspan:"2",style:{color:TS}},["전체 합계"]),h("td",{style:{textAlign:"right",fontWeight:"900",fontSize:"14px"}},[stList.length+"명"]),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900",fontSize:"14px"}},[grand.toLocaleString()+"원"]),h("td",{})])]));
-  statCard.appendChild(statTbl);
-  return statCard;
+  tbl.appendChild(tb);
+  tbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{colspan:"3",style:{color:TS}},["전체 합계 ("+stList.length+"명)"]),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900",fontSize:"14px"}},[grand.toLocaleString()+"원"]),h("td",{})])]));
+  card.appendChild(tbl);
+  return card;
 }
 
 function renderTT(){
@@ -1180,49 +1199,7 @@ function renderTT(){
   return wrap;
 }
 
-function renderFeeCardsSection(){
-  const stList=calcStudents();
-  const wrap=D({});
-  wrap.appendChild(D({style:{fontWeight:"800",color:GOLD,fontSize:"14px",marginTop:"4px",paddingLeft:"4px",display:"flex",alignItems:"center",gap:"6px"}},[
-    Sp({},["💰"]),Sp({},["분류별 교습비 현황"])
-  ]));
-  const feeGrid=D({className:"fee-grid"});
-  GROUPS.forEach(g=>{
-    const col=D({className:"fee-group"});
-    g.cats.forEach(ck=>{
-      const ci2=CATS.find(c=>c.key===ck);const cc=CC[ck];
-      const cst=stList.filter(s=>s.cat===ck);if(!cst.length)return;
-      const gm2={};cst.forEach(s=>{if(!gm2[s.grade])gm2[s.grade]=[];gm2[s.grade].push(s);});
-      const tot=cst.reduce((a,s)=>a+s.monthly,0);
-      const card=D({className:"fee-card",style:{border:`1px solid ${cc.bd}`}});
-      const ch=D({className:"fee-card-head",style:{background:cc.bg,borderBottom:`1px solid ${cc.bd}`}});
-      ch.appendChild(Sp({style:{color:cc.t,fontWeight:"900",fontSize:"13px"}},[ci2.label]));
-      ch.appendChild(D({},[Sp({style:{color:TS,fontSize:"11px"}},[cst.length+"명 · "]),Sp({style:{color:GOLD,fontWeight:"800",fontSize:"12px"}},[tot.toLocaleString()+"원"])]));
-      card.appendChild(ch);
-      const cb=D({className:"fee-card-body"});
-      Object.keys(gm2).sort().forEach(gr=>{
-        const lst=gm2[gr];const sub=lst.reduce((a,s)=>a+s.monthly,0);const gb=D({});
-        const gr2=D({style:{display:"flex",justifyContent:"space-between",marginBottom:"4px"}});
-        gr2.appendChild(Sp({},[Sp({style:{color:cc.t,fontWeight:"700",fontSize:"12px"}},[gr+" "]),Sp({style:{color:TS,fontSize:"11px"}},["("+lst.length+"명)"])]));
-        gr2.appendChild(Sp({style:{color:GOLD,fontSize:"11px",fontWeight:"700"}},[sub.toLocaleString()+"원"]));
-        gb.appendChild(gr2);
-        const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"4px"}});
-        lst.forEach(s=>{
-          const isCust=!s.free&&s.fee!==(S.bf[s.cat]||0);
-          const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${isCust?GOLD:cc.bd}`},onClick:()=>openStudentModal(s.name,s.cat,s.grade)});
-          chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
-          chip.appendChild(Sp({style:{fontSize:"10px",color:isCust?GOLD:TS,marginLeft:"2px"}},[s.free?"무료":"주"+s.wc+"회·"+s.monthly.toLocaleString()+"원"+(isCust?" ✎":"")]));
-          chips.appendChild(chip);
-        });
-        gb.appendChild(chips);cb.appendChild(gb);
-      });
-      card.appendChild(cb);col.appendChild(card);
-    });
-    feeGrid.appendChild(col);
-  });
-  wrap.appendChild(feeGrid);
-  return wrap;
-}
+
 
 // ── 탭: 출결 ────────────────────────────────────────────
 function renderAtt(){
@@ -1311,8 +1288,7 @@ function renderChart(){
     const si=D({className:"summary-item"});si.appendChild(D({className:"summary-val"},[item.v]));si.appendChild(D({className:"summary-sub"},[item.l]));sg.appendChild(si);
   });
   sumCard.appendChild(sg);wrap.appendChild(sumCard);
-  wrap.appendChild(renderCategoryStatCard());
-  wrap.appendChild(renderFeeCardsSection());
+  wrap.appendChild(renderCombinedStatCard());
 
   const chartCard=D({className:"card"});
   chartCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["📈 통계 차트"])]));
