@@ -811,16 +811,28 @@ function openStudentModal(name,fbCat,fbGrade){
       const dCnt2=daysInMonth(curYM);
       const[yy2,mm2]=curYM.split("-").map(Number);
       let O2=0,X2=0,D2=0;
-      const miniCal=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"4px"}});
+      const miniCal=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"4px",marginBottom:"4px"}});
       const dowN=["일","월","화","수","목","금","토"];
-      dowN.forEach((dn,i)=>miniCal.appendChild(D({style:{textAlign:"center",fontSize:"9px",fontWeight:"800",color:i===0?"#d04040":i===6?"#3a6ea8":"#aaa"}},[dn])));
+      dowN.forEach((dn,i)=>miniCal.appendChild(D({style:{textAlign:"center",fontSize:"12px",fontWeight:"800",color:i===0?"#d04040":i===6?"#3a6ea8":"#aaa",padding:"2px 0"}},[dn])));
       const fDay2=new Date(yy2,mm2-1,1).getDay();
       for(let i=0;i<fDay2;i++)miniCal.appendChild(D({}));
       for(let d=1;d<=dCnt2;d++){
         const dk=curYM+"-"+String(d).padStart(2,"0");
         const v=attRec2[dk];
         if(v==="O")O2++;else if(v==="X")X2++;else if(v==="D")D2++;
-        miniCal.appendChild(D({style:{textAlign:"center",borderRadius:"4px",padding:"2px 0",fontSize:"9px",fontWeight:"800",background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"transparent",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ccc"}},[String(d)]));
+        const cell=D({style:{textAlign:"center",borderRadius:"7px",padding:"6px 2px",cursor:"pointer",background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",border:`1px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":"#f0ebe0"}`}});
+        cell.appendChild(D({style:{fontSize:"11px",fontWeight:"700",color:"#999",marginBottom:"2px"}},[String(d)]));
+        cell.appendChild(D({style:{fontSize:"15px",fontWeight:"900",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}},[v||"·"]));
+        cell.addEventListener("click",()=>{
+          if(!S.att[name])S.att[name]={};
+          const curV=S.att[name][dk];
+          if(!curV)S.att[name][dk]="O";
+          else if(curV==="O")S.att[name][dk]="X";
+          else if(curV==="X")S.att[name][dk]="D";
+          else delete S.att[name][dk];
+          build();
+        });
+        miniCal.appendChild(cell);
       }
       const statRow=D({style:{display:"flex",gap:"6px",marginBottom:"10px"}});
       const statItem=(lbl,val)=>D({style:{flex:"1",textAlign:"center",background:"#faf9f6",borderRadius:"8px",padding:"6px 2px"}},[D({style:{fontSize:"13px",fontWeight:"900",color:GOLD}},[val]),D({style:{fontSize:"9px",color:"#aaa",marginTop:"2px"}},[lbl])]);
@@ -830,6 +842,7 @@ function openStudentModal(name,fbCat,fbGrade){
       right.appendChild(statRow);
       right.appendChild(D({style:{fontSize:"11px",color:TS,fontWeight:"700",marginBottom:"4px"}},[ymLabel(curYM)+" 출결현황"]));
       right.appendChild(miniCal);
+      right.appendChild(D({style:{fontSize:"10px",color:"#ccc",marginBottom:"10px"}},["클릭: ·→O→X→D→삭제"]));
 
       right.appendChild(mkTitle("📝","최근 수업 메모"));
       const memos=(S.memo[name]||[]).slice().sort((a,b)=>b.ts-a.ts);
