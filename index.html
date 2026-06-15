@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>이지플라톤 시간표 v5</title>
+<title>이지플라톤 시간표 v10</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-app-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-firestore-compat.js"></script>
@@ -555,14 +555,18 @@ function renderTodayCard(){
 function renderSearchBar(){
   const wrap=D({style:{position:"relative"}});
   const inp=Inp({className:"field-input",id:"searchInput",placeholder:"🔍 학생 이름 검색...",value:S.search,style:{maxWidth:"220px"}});
-  let isComposing=false;
+  let isComposing=false,debTimer=null;
   const commit=e=>{
+    const val=e.target.value;
     const pos=e.target.selectionStart;
-    S.search=e.target.value;render();
-    setTimeout(()=>{const el=document.getElementById("searchInput");if(el){el.focus();el.setSelectionRange(pos,pos);}},0);
+    clearTimeout(debTimer);
+    debTimer=setTimeout(()=>{
+      S.search=val;render();
+      setTimeout(()=>{const el=document.getElementById("searchInput");if(el){el.focus();el.setSelectionRange(pos,pos);}},0);
+    },200);
   };
   inp.addEventListener("compositionstart",()=>{isComposing=true;});
-  inp.addEventListener("compositionend",commit);
+  inp.addEventListener("compositionend",e=>{isComposing=false;commit(e);});
   inp.addEventListener("input",e=>{if(!isComposing)commit(e);});
   wrap.appendChild(inp);
   const q=S.search.trim();
@@ -800,12 +804,39 @@ function openStudentModal(name,fbCat,fbGrade){
 
       // 우: 최근 메모
       const right=D({style:{flex:"1",display:"flex",flexDirection:"column"}});
+
+      // 수업현황 요약 + 이번달 출결 미니캘린더
+      const curYM=toYM(new Date());
+      const attRec2=S.att[name]||{};
+      const dCnt2=daysInMonth(curYM);
+      const[yy2,mm2]=curYM.split("-").map(Number);
+      let O2=0,X2=0,D2=0;
+      const miniCal=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"4px"}});
+      const dowN=["일","월","화","수","목","금","토"];
+      dowN.forEach((dn,i)=>miniCal.appendChild(D({style:{textAlign:"center",fontSize:"9px",fontWeight:"800",color:i===0?"#d04040":i===6?"#3a6ea8":"#aaa"}},[dn])));
+      const fDay2=new Date(yy2,mm2-1,1).getDay();
+      for(let i=0;i<fDay2;i++)miniCal.appendChild(D({}));
+      for(let d=1;d<=dCnt2;d++){
+        const dk=curYM+"-"+String(d).padStart(2,"0");
+        const v=attRec2[dk];
+        if(v==="O")O2++;else if(v==="X")X2++;else if(v==="D")D2++;
+        miniCal.appendChild(D({style:{textAlign:"center",borderRadius:"4px",padding:"2px 0",fontSize:"9px",fontWeight:"800",background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"transparent",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ccc"}},[String(d)]));
+      }
+      const statRow=D({style:{display:"flex",gap:"6px",marginBottom:"10px"}});
+      const statItem=(lbl,val)=>D({style:{flex:"1",textAlign:"center",background:"#faf9f6",borderRadius:"8px",padding:"6px 2px"}},[D({style:{fontSize:"13px",fontWeight:"900",color:GOLD}},[val]),D({style:{fontSize:"9px",color:"#aaa",marginTop:"2px"}},[lbl])]);
+      statRow.appendChild(statItem("주 수업",(st?.wc||0)+"회"));
+      statRow.appendChild(statItem("월 교습비",st?.free?"무료":(st?.monthly||0).toLocaleString()+"원"));
+      statRow.appendChild(statItem(ymLabel(curYM)+" 출결",O2+"출/"+X2+"결/"+D2+"보"));
+      right.appendChild(statRow);
+      right.appendChild(D({style:{fontSize:"11px",color:TS,fontWeight:"700",marginBottom:"4px"}},[ymLabel(curYM)+" 출결현황"]));
+      right.appendChild(miniCal);
+
       right.appendChild(mkTitle("📝","최근 수업 메모"));
       const memos=(S.memo[name]||[]).slice().sort((a,b)=>b.ts-a.ts);
       if(!memos.length){
         right.appendChild(D({style:{color:"#ccc",fontSize:"12px",padding:"12px 0"}},["수업 메모가 없습니다."]));
       } else {
-        const list=D({style:{overflowY:"auto",maxHeight:"300px",display:"flex",flexDirection:"column",gap:"8px"}});
+        const list=D({style:{overflowY:"auto",maxHeight:"160px",display:"flex",flexDirection:"column",gap:"8px"}});
         memos.slice(0,8).forEach(m=>{
           const isEdit=ms.infoEditTs===m.ts;
           const item=D({style:{background:isEdit?"#fffbf0":"#faf9f6",borderRadius:"8px",padding:"9px 12px",border:`1px solid ${isEdit?GOLD:"#e8e0d4"}`}});
