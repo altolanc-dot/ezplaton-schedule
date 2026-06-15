@@ -402,11 +402,19 @@ function scheduleAutoSave(){
 function setupRealtimeSync(){
   if(!db)return;
   db.collection(FB_COL).doc(FB_DOC).onSnapshot(doc=>{
-    isApplyingRemote=true;
-    if(doc.exists){
-      const data=doc.data();
-      if(data._writer!==MY_ID)applyData(data);
+    if(!doc.exists){
+      firstSnapshotReceived=true;
+      if(!S.loaded)render();
+      return;
     }
+    const data=doc.data();
+    if(data._writer===MY_ID){
+      // 내가 보낸 변경의 echo: 다시 그릴 필요 없음
+      firstSnapshotReceived=true;
+      return;
+    }
+    isApplyingRemote=true;
+    applyData(data);
     firstSnapshotReceived=true;
     S.saveStatus="🟢 동기화됨 "+new Date().toLocaleTimeString();
     render();
