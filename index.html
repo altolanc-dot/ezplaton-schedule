@@ -1071,14 +1071,14 @@ function renderCombinedStatCard(){
   const catTotals=CATS.map(c=>({...c,students:stList.filter(s=>s.cat===c.key),total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0)})).filter(c=>c.students.length>0);
   const grand=catTotals.reduce((a,c)=>a+c.total,0);
   const card=D({className:"card"});
-  card.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["📊 분류별 현황"])]));
+  card.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["💰 교습비 현황"])]));
   const tbl=h("table",{className:"stat"});
   tbl.appendChild(h("thead",{},[h("tr",{},[
-    h("th",{style:{width:"110px",textAlign:"left"}},["분류"]),
+    h("th",{style:{width:"118px",textAlign:"left"}},["분류"]),
     h("th",{style:{width:"60px",textAlign:"left"}},["학년"]),
     h("th",{style:{textAlign:"left"}},["학생"]),
-    h("th",{style:{textAlign:"right",width:"100px"}},["교습비"]),
-    h("th",{style:{textAlign:"right",width:"150px"}},["비중"])
+    h("th",{style:{textAlign:"right",width:"130px"}},["교습비"]),
+    h("th",{style:{textAlign:"right",width:"180px"}},["비중"])
   ])]));
   const tb=h("tbody",{});
   catTotals.forEach((cat,ci)=>{
@@ -1089,7 +1089,9 @@ function renderCombinedStatCard(){
     grades.forEach((gr,gi)=>{
       const lst=gm[gr];const sub=lst.reduce((a,s)=>a+s.monthly,0);
       const tr=h("tr",{style:{background:ci%2===0?"#fff":"#fdfaf4"}});
-      if(gi===0)tr.appendChild(h("td",{rowspan:String(grades.length),style:{verticalAlign:"top",paddingTop:"12px"}},[Sp({style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`,borderRadius:"6px",padding:"3px 10px",fontWeight:"700",fontSize:"11px"}},[cat.label])]));
+      if(gi===0)tr.appendChild(h("td",{rowspan:String(grades.length),style:{verticalAlign:"top",paddingTop:"12px",whiteSpace:"nowrap"}},[
+        Sp({style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`,borderRadius:"6px",padding:"3px 10px",fontWeight:"700",fontSize:"11px",whiteSpace:"nowrap"}},[cat.label])
+      ]));
       tr.appendChild(h("td",{style:{whiteSpace:"nowrap"}},[Sp({style:{color:cc.t,fontWeight:"700",fontSize:"12px"}},[gr]),Sp({style:{color:TS,fontSize:"11px",marginLeft:"2px"}},["("+lst.length+"명)"])]));
       const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"4px"}});
       lst.forEach(s=>{
@@ -1112,7 +1114,7 @@ function renderCombinedStatCard(){
     });
   });
   tbl.appendChild(tb);
-  tbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{colspan:"3",style:{color:TS}},["전체 합계 ("+stList.length+"명)"]),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900",fontSize:"14px"}},[grand.toLocaleString()+"원"]),h("td",{})])]));
+  tbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{colspan:"3",style:{color:TS}},["전체 합계 ("+stList.length+"명)"]),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900",fontSize:"14px",whiteSpace:"nowrap"}},[grand.toLocaleString()+"원"]),h("td",{})])]));
   card.appendChild(tbl);
   return card;
 }
@@ -1282,10 +1284,17 @@ function renderChart(){
   const wrap=D({});
 
   const sumCard=D({className:"card"});
-  sumCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["💰 매출 현황 요약"])]));
-  const sg=D({className:"summary-grid"});
-  [{l:"총 학생 수",v:stList.length+"명"},{l:"유료 학생",v:stList.filter(s=>!s.free).length+"명"},{l:"월 예상 매출",v:grand.toLocaleString()+"원"}].forEach(item=>{
-    const si=D({className:"summary-item"});si.appendChild(D({className:"summary-val"},[item.v]));si.appendChild(D({className:"summary-sub"},[item.l]));sg.appendChild(si);
+  sumCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["👥 학생수 요약"])]));
+  const sg=D({className:"summary-grid",style:{gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))"}});
+  const SHORT_LABEL={초등_플라톤:"플라톤",초등_이지:"초등이지",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인"};
+  const sumCatTotals=CATS.map(c=>({key:c.key,total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
+  const sumItems=[{l:"총 학생수",cnt:stList.length}];
+  sumCatTotals.forEach(c=>sumItems.push({l:SHORT_LABEL[c.key]||c.key,cnt:c.cnt}));
+  sumItems.forEach(item=>{
+    const si=D({className:"summary-item"});
+    si.appendChild(D({className:"summary-val"},[item.cnt+"명"]));
+    si.appendChild(D({className:"summary-sub"},[item.l]));
+    sg.appendChild(si);
   });
   sumCard.appendChild(sg);wrap.appendChild(sumCard);
   wrap.appendChild(renderCombinedStatCard());
