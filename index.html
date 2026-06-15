@@ -1073,10 +1073,11 @@ function renderCategoryStatCard(){
   const statCard=D({className:"card"});
   statCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["📊 분류별 현황"])]));
   const statTbl=h("table",{className:"stat"});
-  statTbl.appendChild(h("thead",{},[h("tr",{},[h("th",{style:{width:"130px",textAlign:"left"}},["분류"]),h("th",{style:{textAlign:"left"}},["학년별 인원"]),h("th",{style:{textAlign:"right",width:"64px"}},["인원"]),h("th",{style:{textAlign:"right",width:"140px"}},["교습비 합계"])])]));
+  statTbl.appendChild(h("thead",{},[h("tr",{},[h("th",{style:{width:"130px",textAlign:"left"}},["분류"]),h("th",{style:{textAlign:"left"}},["학년별 인원"]),h("th",{style:{textAlign:"right",width:"64px"}},["인원"]),h("th",{style:{textAlign:"right",width:"130px"}},["교습비 합계"]),h("th",{style:{textAlign:"right",width:"150px"}},["비중"])])]));
   const stb=h("tbody",{});
   catTotals.forEach((cat,ci)=>{
     const cc=CC[cat.key];const gm={};cat.students.forEach(s=>{gm[s.grade]=(gm[s.grade]||0)+1;});
+    const pct=grand>0?Math.round(cat.total/grand*100):0;
     const tr=h("tr",{style:{background:ci%2===0?"#fff":"#fdfaf4"}});
     tr.appendChild(h("td",{},[Sp({style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`,borderRadius:"6px",padding:"3px 10px",fontWeight:"700",fontSize:"11px"}},[cat.label])]));
     const gd=D({style:{display:"flex",flexWrap:"wrap",gap:"8px"}});
@@ -1084,10 +1085,15 @@ function renderCategoryStatCard(){
     tr.appendChild(h("td",{},[gd]));
     tr.appendChild(h("td",{style:{textAlign:"right",fontWeight:"800"}},[cat.students.length+"명"]));
     tr.appendChild(h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"800"}},[cat.total.toLocaleString()+"원"]));
+    const pTd=h("td",{style:{textAlign:"right"}});
+    const pb=D({style:{display:"flex",alignItems:"center",gap:"6px",justifyContent:"flex-end"}});
+    pb.appendChild(D({style:{height:"8px",width:Math.max(4,pct*1.2)+"px",maxWidth:"120px",background:cc.t,borderRadius:"4px"}}));
+    pb.appendChild(Sp({style:{fontSize:"11px",color:TS,minWidth:"30px"}},[pct+"%"]));
+    pTd.appendChild(pb);tr.appendChild(pTd);
     stb.appendChild(tr);
   });
   statTbl.appendChild(stb);
-  statTbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{colspan:"2",style:{color:TS}},["전체 합계"]),h("td",{style:{textAlign:"right",fontWeight:"900",fontSize:"14px"}},[stList.length+"명"]),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900",fontSize:"14px"}},[grand.toLocaleString()+"원"])])]));
+  statTbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{colspan:"2",style:{color:TS}},["전체 합계"]),h("td",{style:{textAlign:"right",fontWeight:"900",fontSize:"14px"}},[stList.length+"명"]),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900",fontSize:"14px"}},[grand.toLocaleString()+"원"]),h("td",{})])]));
   statCard.appendChild(statTbl);
   return statCard;
 }
@@ -1315,27 +1321,7 @@ function renderChart(){
   const hourBox=D({className:"chart-box"});const hourCanvas=h("canvas",{});hourBox.appendChild(hourCanvas);cGrid.appendChild(hourBox);
   const barBox=D({className:"chart-box",style:{gridColumn:"1 / -1"}});const barCanvas=h("canvas",{});barBox.appendChild(barCanvas);cGrid.appendChild(barBox);
   chartCard.appendChild(cGrid);
-
-  const tw=D({style:{padding:"0 20px 16px"}});
-  const tbl=h("table",{className:"stat"});
-  tbl.appendChild(h("thead",{},[h("tr",{},[h("th",{style:{textAlign:"left"}},["분류"]),h("th",{style:{textAlign:"right"}},["학생 수"]),h("th",{style:{textAlign:"right"}},["월 교습비"]),h("th",{style:{textAlign:"right"}},["비중"])])]));
-  const tb=h("tbody",{});
-  CATS.forEach((cat,ci)=>{
-    const cc=CC[cat.key];const cst=stList.filter(s=>s.cat===cat.key);if(!cst.length)return;
-    const tot=cst.reduce((a,s)=>a+s.monthly,0);const pct=grand>0?Math.round(tot/grand*100):0;
-    const tr=h("tr",{style:{background:ci%2===0?"#fff":"#fdfaf4"}});
-    tr.appendChild(h("td",{},[Sp({style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`,borderRadius:"6px",padding:"3px 10px",fontWeight:"700",fontSize:"11px"}},[cat.label])]));
-    tr.appendChild(h("td",{style:{textAlign:"right",fontWeight:"700"}},[cst.length+"명"]));
-    tr.appendChild(h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"800"}},[tot.toLocaleString()+"원"]));
-    const pTd=h("td",{style:{textAlign:"right"}});
-    const pb=D({style:{display:"flex",alignItems:"center",gap:"6px",justifyContent:"flex-end"}});
-    pb.appendChild(D({style:{height:"8px",width:Math.max(4,pct*1.2)+"px",maxWidth:"120px",background:cc.t,borderRadius:"4px"}}));
-    pb.appendChild(Sp({style:{fontSize:"11px",color:TS,minWidth:"30px"}},[pct+"%"]));
-    pTd.appendChild(pb);tr.appendChild(pTd);tb.appendChild(tr);
-  });
-  tbl.appendChild(tb);
-  tbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{style:{color:TS}},["합계"]),h("td",{style:{textAlign:"right",fontWeight:"900"}},[stList.length+"명"]),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900"}},[grand.toLocaleString()+"원"]),h("td",{})])]));
-  tw.appendChild(tbl);chartCard.appendChild(tw);wrap.appendChild(chartCard);
+  wrap.appendChild(chartCard);
 
   setTimeout(()=>{
     const barLabelPlugin=(fmt)=>({
