@@ -270,18 +270,15 @@ function calcDailyRevenue(){
   snapshotRevenue();
   const start=new Date(now);start.setMonth(start.getMonth()-6);start.setDate(1);
   const end=new Date(now);end.setMonth(end.getMonth()+6);end.setDate(1);end.setMonth(end.getMonth()+1);end.setDate(0);
-  // 범위 내 스냅샷 키만 추출
-  const histKeys=Object.keys(S.revHistory).filter(k=>{
-    const d=new Date(start);d.setDate(d.getDate()-1);
-    return k>=d.toISOString().split("T")[0]&&k<=todayKey;
-  }).sort();
   const result=[];
+  let lastVal=null;
   for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
     const dk=d.toISOString().split("T")[0];
     const label=(d.getMonth()+1)+"/"+d.getDate();
-    if(dk>todayKey){result.push({date:dk,label,total:null});continue;}
-    // 스냅샷이 있는 날만 값, 나머지는 null
-    result.push({date:dk,label,total:S.revHistory[dk]!==undefined?S.revHistory[dk]:null});
+    if(dk>todayKey){result.push({date:dk,label,total:null,isSnap:false});continue;}
+    const isSnap=S.revHistory[dk]!==undefined;
+    if(isSnap)lastVal=S.revHistory[dk];
+    result.push({date:dk,label,total:lastVal,isSnap});
   }
   return result;
 }
@@ -1431,7 +1428,7 @@ function renderChart(){
     const padding=(maxV-minV)||500000;
     const yMin=Math.max(0,Math.floor((minV-padding*0.3)/100000)*100000);
     const yMax=Math.ceil((maxV+padding*0.3)/100000)*100000;
-    chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.08)",borderWidth:2.5,pointBackgroundColor:"#b8872a",pointRadius:ctx=>ctx.raw==null?0:6,pointHoverRadius:8,tension:0,fill:false,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:13,weight:"bold"},color:"#555"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#f0ebe0"}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:13}}}},plugins:[lastLabelPlugin]}));
+    chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.08)",borderWidth:2.5,pointBackgroundColor:"#b8872a",pointRadius:ctx=>daily[ctx.dataIndex]?.isSnap?6:0,pointHoverRadius:ctx=>daily[ctx.dataIndex]?.isSnap?8:4,tension:0,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:13,weight:"bold"},color:"#555"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#f0ebe0"}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:13}}}},plugins:[lastLabelPlugin]}));
   },60);
   return wrap;
 }
