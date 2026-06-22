@@ -261,7 +261,12 @@ function snapshotRevenue(){
   const rows=calcStudentsPerSlot();
   const total=rows.reduce((a,r)=>a+(r.free?0:r.fee),0);
   const todayKey=new Date().toISOString().split("T")[0];
-  S.revHistory[todayKey]=total;
+  // 가장 최근 스냅샷 값과 비교해서 달라졌을 때만 저장
+  const histKeys=Object.keys(S.revHistory).sort();
+  const lastVal=histKeys.length?S.revHistory[histKeys[histKeys.length-1]]:null;
+  if(lastVal!==total){
+    S.revHistory[todayKey]=total;
+  }
 }
 function calcDailyRevenue(){
   if(!S.revHistory)S.revHistory={};
@@ -1428,18 +1433,18 @@ function renderChart(){
     const padding=(maxV-minV)||500000;
     const yMin=Math.max(0,Math.floor((minV-padding*0.5)/100000)*100000);
     const yMax=Math.ceil((maxV+padding*0.5)/100000)*100000;
-    // 포인트: 스냅샷 당일 + 다음 스냅샷 전날만 표시
+    // 포인트: 값이 바뀌는 시점(첫날)과 바뀌기 직전날(마지막날)만 표시
     const snapIndices=new Set();
-    daily.forEach((d,i)=>{
-      if(d.isSnap){
-        snapIndices.add(i); // 변동 당일
-        // 다음 스냅샷 전날 (값이 있는 마지막 날)
-        for(let j=i+1;j<daily.length;j++){
-          if(daily[j].isSnap||daily[j].total==null){snapIndices.add(j-1);break;}
-          if(j===daily.length-1||daily[j+1].total==null)snapIndices.add(j);
-        }
-      }
-    });
+    const dataVals=daily.map(d=>d.total);
+    for(let i=0;i<dataVals.length;i++){
+      if(dataVals[i]==null)continue;
+      const prev=dataVals[i-1];
+      const next=dataVals[i+1];
+      // 값이 시작되는 지점 (이전이 null이거나 값이 다를 때)
+      if(prev==null||prev!==dataVals[i])snapIndices.add(i);
+      // 값이 끝나는 지점 (다음이 null이거나 값이 다를 때)
+      if(next==null||next!==dataVals[i])snapIndices.add(i);
+    }
     chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.06)",borderWidth:2,pointBackgroundColor:"#b8872a",pointRadius:ctx=>snapIndices.has(ctx.dataIndex)?5:0,pointHoverRadius:7,tension:0,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:13,weight:"bold"},color:"#555"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#f0ebe0"}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:13}}}},plugins:[lastLabelPlugin]}));
   },60);
   return wrap;
