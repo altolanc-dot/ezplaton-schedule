@@ -458,18 +458,43 @@ function calcStudents(){
   const m={};
   S.sch.forEach(slot=>{
     (slot.names||[]).forEach(n=>{
-      if(!m[n])m[n]={name:n,slotCat:slot.cat,slotGrade:slot.grade,wc:0};
-      m[n].wc++;
+      const ps=(slot.perStudent&&slot.perStudent[n])||{};
+      const cat=ps.cat||slot.cat;
+      if(!m[n])m[n]={name:n,slots:[]};
+      m[n].slots.push({cat,fee:ps.fee,slotGrade:slot.grade});
     });
   });
   return Object.values(m).map(s=>{
     const meta=S.meta[s.name]||{};
-    const cat=meta.cat||s.slotCat;
-    const grade=meta.grade||s.slotGrade;
     const free=!!meta.free;
-    const fee=free?0:(meta.fee!==undefined?Number(meta.fee):(S.bf[cat]||0));
-    return{name:s.name,cat,grade,free,wc:s.wc,fee,monthly:free?0:fee*s.wc,memo:meta.memo||"",regDate:meta.regDate||""};
+    const grade=meta.grade||s.slots[0]?.slotGrade||"";
+    // 슬롯별로 집계
+    const monthly=free?0:s.slots.reduce((a,sl)=>{
+      const fee=sl.fee!==undefined?sl.fee:(meta.fee!==undefined?Number(meta.fee):(S.bf[sl.cat]||0));
+      return a+fee;
+    },0);
+    // 대표 분류: 가장 많이 등장하는 cat
+    const catCount={};s.slots.forEach(sl=>{catCount[sl.cat]=(catCount[sl.cat]||0)+1;});
+    const cat=Object.keys(catCount).sort((a,b)=>catCount[b]-catCount[a])[0]||"초등_플라톤";
+    const fee=free?0:(s.slots[0]?.fee!==undefined?s.slots[0].fee:(meta.fee!==undefined?Number(meta.fee):(S.bf[cat]||0)));
+    return{name:s.name,cat,grade,free,wc:s.slots.length,fee,monthly,memo:meta.memo||"",regDate:meta.regDate||""};
   });
+}
+// ── 슬롯별 학생 분류/교습비 집계 (교습비 현황용) ─────────────
+function calcStudentsPerSlot(){
+  const rows=[];
+  S.sch.forEach(slot=>{
+    (slot.names||[]).forEach(n=>{
+      const ps=(slot.perStudent&&slot.perStudent[n])||{};
+      const meta=S.meta[n]||{};
+      const free=!!meta.free;
+      const cat=ps.cat||slot.cat;
+      const fee=free?0:(ps.fee!==undefined?ps.fee:(meta.fee!==undefined?Number(meta.fee):(S.bf[cat]||0)));
+      const grade=meta.grade||slot.grade;
+      rows.push({name:n,cat,grade,free,fee,slotId:slot.id});
+    });
+  });
+  return rows;
 }
 function buildCellMaps(){
   const cmap={},smap={};
@@ -644,23 +669,32 @@ function openCellModal(time,day){
     nt:slot?(slot.names||[]).join("\n"):"",
     span:String(slot?.span||2),stInfos:[]
   };
-  const buildSI=(names,cat)=>names.map(n=>{
+  const buildSI=(names,cat,slot)=>names.map(n=>{
     const meta=S.meta[n]||{};const free=!!meta.free;
-    const fee=free?0:(meta.fee!==undefined?meta.fee:(S.bf[cat]||0));
-    return{name:n,free,fee};
+    const ps=(slot?.perStudent&&slot.perStudent[n])||{};
+    const indCat=ps.cat||cat;
+    const fee=free?0:(ps.fee!==undefined?ps.fee:(meta.fee!==undefined?meta.fee:(S.bf[indCat]||0)));
+    return{name:n,free,fee,cat:indCat};
   });
-  const syncSI=(nt,cat,cur)=>nt.split("\n").map(n=>n.trim()).filter(Boolean).map(n=>cur.find(i=>i.name===n)||buildSI([n],cat)[0]);
-  if(slot)ms.stInfos=buildSI(slot.names,slot.cat);
+  const syncSI=(nt,cat,cur)=>nt.split("\n").map(n=>n.trim()).filter(Boolean).map(n=>cur.find(i=>i.name===n)||buildSI([n],cat,slot)[0]);
+  if(slot)ms.stInfos=buildSI(slot.names,slot.cat,slot);
 
   const ov=mkOv(close);const modal=mkModal(440);
   function close(){ov.remove();}
-  function confirm(){
+      function confirm(){
     const names=ms.nt.split("\n").map(n=>n.trim()).filter(Boolean);
     const sp=Math.max(1,parseInt(ms.span)||2);
     if(!names.length){S.sch=S.sch.filter(s=>!(s.time===time&&s.day===day));close();render();return;}
-    ms.stInfos.forEach(si=>{S.meta[si.name]={...(S.meta[si.name]||{}),fee:si.fee};});
-    if(ms.sid)S.sch=S.sch.map(s=>s.id===ms.sid?{...s,names,grade:ms.grade,cat:ms.cat,span:sp}:s);
-    else S.sch=[...S.sch,{id:nid(),time,day,names,grade:ms.grade,cat:ms.cat,span:sp}];
+    // perStudent: 슬롯 기본 분류와 다른 경우만 저장
+    const perStudent={};
+    ms.stInfos.forEach(si=>{
+      const entry={};
+      if(si.cat!==ms.cat)entry.cat=si.cat;
+      if(!si.free)entry.fee=si.fee;
+      if(Object.keys(entry).length)perStudent[si.name]=entry;
+    });
+    if(ms.sid)S.sch=S.sch.map(s=>s.id===ms.sid?{...s,names,grade:ms.grade,cat:ms.cat,span:sp,perStudent}:s);
+    else S.sch=[...S.sch,{id:nid(),time,day,names,grade:ms.grade,cat:ms.cat,span:sp,perStudent}];
     close();render();
   }
   function rebuild(){
@@ -700,17 +734,30 @@ function openCellModal(time,day){
       const cc=CC[ms.cat];
       fc.appendChild(D({style:{fontSize:"11px",color:TS,fontWeight:"600",marginBottom:"7px"}},["📊 교습비 (회당)"]));
       ms.stInfos.forEach((si,i)=>{
-        const card=D({className:"fee-calc-card",style:{background:cc.li,borderColor:cc.bd}});
-        const tr=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:si.free?"0":"6px"}});
-        const ne=Sp({style:{fontWeight:"700",fontSize:"13px",color:cc.t,cursor:"pointer",textDecoration:"underline dotted"}},[si.name]);
-        ne.addEventListener("click",e=>{e.stopPropagation();openStudentModal(si.name,ms.cat,ms.grade);});
+        const siCat=si.cat||ms.cat;
+        const cc2=CC[siCat];
+        const card=D({className:"fee-calc-card",style:{background:cc2.li,borderColor:cc2.bd}});
+        const tr=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"6px"}});
+        const ne=Sp({style:{fontWeight:"700",fontSize:"13px",color:cc2.t,cursor:"pointer",textDecoration:"underline dotted"}},[si.name]);
+        ne.addEventListener("click",e=>{e.stopPropagation();openStudentModal(si.name,siCat,ms.grade);});
         tr.appendChild(ne);
         if(si.free)tr.appendChild(Sp({style:{fontSize:"11px",color:"#e05a5a",fontWeight:"800",background:"#fff0f0",borderRadius:"5px",padding:"2px 7px"}},["무료"]));
         else tr.appendChild(Sp({className:"fee-lbl",style:{fontSize:"13px",fontWeight:"800",color:GOLD}},[si.fee.toLocaleString()+"원/회"]));
         card.appendChild(tr);
+        // 개별 분류 선택
+        const catRow=D({style:{display:"flex",gap:"3px",flexWrap:"wrap",marginBottom:"6px"}});
+        CATS.forEach(c=>{
+          const sel=siCat===c.key;const cc3=CC[c.key];
+          catRow.appendChild(Bt({style:{padding:"2px 7px",borderRadius:"6px",border:`1px solid ${sel?cc3.t:BORDER}`,background:sel?cc3.bg:"#faf8f4",color:sel?cc3.t:TS,fontWeight:sel?"800":"400",fontSize:"10px",cursor:"pointer"},
+            onClick:()=>{
+              ms.stInfos[i]={...ms.stInfos[i],cat:c.key,fee:si.free?0:(S.meta[si.name]?.fee!==undefined?S.meta[si.name].fee:(S.bf[c.key]||0))};
+              rebuildFee();
+            }},[c.label]));
+        });
+        card.appendChild(catRow);
         if(!si.free){
           const cr=D({style:{display:"flex",alignItems:"center",gap:"8px"}});
-          const fi=Inp({type:"number",value:String(si.fee),style:{width:"110px",border:`1px solid ${cc.bd}`,borderRadius:"7px",padding:"5px 8px",fontSize:"13px",textAlign:"right",outline:"none",background:"#fff",fontWeight:"700"}});
+          const fi=Inp({type:"number",value:String(si.fee),style:{width:"110px",border:`1px solid ${cc2.bd}`,borderRadius:"7px",padding:"5px 8px",fontSize:"13px",textAlign:"right",outline:"none",background:"#fff",fontWeight:"700"}});
           fi.addEventListener("input",e=>{
             const v=Number(e.target.value)||0;
             ms.stInfos[i]={...ms.stInfos[i],fee:v};
@@ -1075,8 +1122,18 @@ function openFeeModal(){
 // ── 탭: 시간표 ───────────────────────────────────────────
 function renderCombinedStatCard(){
   const stList=calcStudents();
-  const catTotals=CATS.map(c=>({...c,students:stList.filter(s=>s.cat===c.key),total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0)})).filter(c=>c.students.length>0);
-  const grand=catTotals.reduce((a,c)=>a+c.total,0);
+  const rows=calcStudentsPerSlot();
+  // 분류별 집계
+  const catMap={};
+  rows.forEach(r=>{
+    if(!catMap[r.cat])catMap[r.cat]={students:{},total:0};
+    if(!catMap[r.cat].students[r.name])catMap[r.cat].students[r.name]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,monthly:0,wc:0};
+    catMap[r.cat].students[r.name].monthly+=r.free?0:r.fee;
+    catMap[r.cat].students[r.name].wc++;
+    catMap[r.cat].total+=r.free?0:r.fee;
+  });
+  const grand=Object.values(catMap).reduce((a,c)=>a+c.total,0);
+  const catTotals=CATS.map(c=>({...c,students:Object.values(catMap[c.key]?.students||{}),total:catMap[c.key]?.total||0})).filter(c=>c.students.length>0);
   const card=D({className:"card"});
   card.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["💰 교습비 현황"])]));
   const tbl=h("table",{className:"stat"});
@@ -1102,10 +1159,9 @@ function renderCombinedStatCard(){
       tr.appendChild(h("td",{style:{whiteSpace:"nowrap"}},[Sp({style:{color:cc.t,fontWeight:"700",fontSize:"12px"}},[gr]),Sp({style:{color:TS,fontSize:"11px",marginLeft:"2px"}},["("+lst.length+"명)"])]));
       const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"4px"}});
       lst.forEach(s=>{
-        const isCust=!s.free&&s.fee!==(S.bf[s.cat]||0);
-        const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${isCust?GOLD:cc.bd}`},onClick:()=>openStudentModal(s.name,s.cat,s.grade)});
+        const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`},onClick:()=>openStudentModal(s.name,s.cat,s.grade)});
         chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
-        chip.appendChild(Sp({style:{fontSize:"10px",color:isCust?GOLD:TS,marginLeft:"2px"}},[s.free?"무료":"주"+s.wc+"회·"+s.monthly.toLocaleString()+"원"+(isCust?" ✎":"")]));
+        chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[s.free?"무료":"주"+s.wc+"회·"+s.monthly.toLocaleString()+"원"]));
         chips.appendChild(chip);
       });
       tr.appendChild(h("td",{},[chips]));
