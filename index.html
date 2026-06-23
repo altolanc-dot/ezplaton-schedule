@@ -535,7 +535,18 @@ function calcCategoryHours(){
   S.sch.forEach(slot=>{
     if(!slot.names||!slot.names.length)return;
     const h=(slot.span||2)/2;
-    hrs[slot.cat]=(hrs[slot.cat]||0)+h*slot.names.length;
+    const perStudent=slot.perStudent||{};
+    const hasPer=slot.names.some(n=>perStudent[n]?.cat&&perStudent[n].cat!==slot.cat);
+    if(hasPer){
+      // 학생별 분류가 다른 경우: 슬롯 시간을 학생 수로 나눠 각 분류에 배분
+      slot.names.forEach(n=>{
+        const cat=(perStudent[n]?.cat)||slot.cat;
+        hrs[cat]=(hrs[cat]||0)+h/slot.names.length;
+      });
+    } else {
+      // 모두 같은 분류: 슬롯 시간 그대로
+      hrs[slot.cat]=(hrs[slot.cat]||0)+h;
+    }
   });
   return hrs;
 }
@@ -1417,8 +1428,14 @@ function renderChart(){
       }
     };
 
-    const feeData=CATS.map(c=>({label:c.label,val:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),color:CC[c.key].t,bg:CC[c.key].bg})).filter(d=>d.val>0)
-      .sort((a,b)=>b.val-a.val);
+    // 교습비 차트: calcStudentsPerSlot 기반으로 분류별 집계
+    const slotRows=calcStudentsPerSlot();
+    const catFeeMap={};
+    slotRows.forEach(r=>{
+      if(!catFeeMap[r.cat])catFeeMap[r.cat]=0;
+      catFeeMap[r.cat]+=r.free?0:r.fee;
+    });
+    const feeData=CATS.map(c=>({label:c.label,val:catFeeMap[c.key]||0,color:CC[c.key].t,bg:CC[c.key].bg})).filter(d=>d.val>0).sort((a,b)=>b.val-a.val);
     chartInst.push(new Chart(feeCanvas,{type:"bar",data:{labels:feeData.map(d=>d.label),datasets:[{label:"교습비 합계",data:feeData.map(d=>d.val),backgroundColor:feeData.map(d=>d.bg),borderColor:feeData.map(d=>d.color),borderWidth:2,borderRadius:6}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,layout:{padding:{right:75}},plugins:{legend:{display:false},title:{display:true,text:"분류별 교습비 비중 (높은순)",font:{size:13,weight:"bold"},color:"#555"}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v===0?"0":(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#f0ebe0"}},y:{grid:{display:false},ticks:{font:{size:11}}}}},plugins:[barLabelPlugin((v,t)=>(v/10000).toFixed(0)+"만 ("+(t>0?Math.round(v/t*100):0)+"%)")]}));
 
     const catHours=calcCategoryHours();
