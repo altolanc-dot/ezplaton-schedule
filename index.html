@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>이지플라톤 시간표 v20</title>
+<title>이지플라톤 시간표 v10</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-app-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-firestore-compat.js"></script>
@@ -48,6 +48,7 @@ table.tt .slot-cell{cursor:default;min-width:100px;padding:7px 9px;vertical-alig
 .slot-grade{font-size:9px;font-weight:800;margin-bottom:3px;line-height:1.4;cursor:pointer;opacity:.8;}
 .slot-name{display:inline-block;font-size:12px;font-weight:600;line-height:2;cursor:pointer;padding:0 4px;border-radius:4px;}
 .leg-badge{border-radius:5px;padding:2px 9px;font-size:11px;font-weight:700;}
+table.tt tbody tr:hover td.time-col{background:#fdf3de;color:#b8872a;font-weight:900;}
 table.stat{width:100%;border-collapse:collapse;font-size:12px;}
 table.stat th,table.stat td{border:1px solid #e8e0d4;padding:10px 14px;}
 table.stat thead th{background:#f8f4ed;color:#999;font-weight:700;}
@@ -1240,7 +1241,7 @@ function renderTT(){
           td.addEventListener("dragstart",e=>{dragId=slot.id;e.dataTransfer.effectAllowed="move";td.style.opacity="0.3";});
           td.addEventListener("dragend",()=>{dragId=null;td.style.opacity="1";});
           td.addEventListener("click",e=>{if(e.target.classList.contains("slot-name"))return;openCellModal(tk,d);});
-          const gl=D({className:"slot-grade",style:{color:cc.t}},[slot.grade+" · "+(CATS.find(c=>c.key===slot.cat)?.sub||"")]);
+          const gl=D({className:"slot-grade",style:{color:cc.t}},[tk.replace(/[AP]M /,"")+" · "+slot.grade+" · "+(CATS.find(c=>c.key===slot.cat)?.sub||"")]);
           gl.addEventListener("click",()=>openCellModal(tk,d));td.appendChild(gl);
           slot.names.forEach(n=>{
             const isMatch=S.search.trim()&&n.includes(S.search.trim());
