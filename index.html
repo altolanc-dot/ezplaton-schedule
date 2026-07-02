@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>이지플라톤 시간표 v20</title>
+<title>이지플라톤 시간표 v10</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-app-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-firestore-compat.js"></script>
@@ -102,15 +102,17 @@ table.att-tbl tbody tr:hover{background:#fdfaf4;}
 const CATS=[
   {key:"초등_플라톤",label:"초등 플라톤",sub:"플라톤"},
   {key:"초등_이지",  label:"초등 이지",  sub:"이지"},
+  {key:"중등_플라톤",label:"중등 플라톤",sub:"플라톤"},
   {key:"중등_이지",  label:"중등 이지",  sub:"이지"},
   {key:"중등_이지수능",label:"중등 이지수능",sub:"이지수능"},
   {key:"고등_이지수능",label:"고등 이지수능",sub:"이지수능"},
   {key:"고등_개인",  label:"고등 개인",  sub:"개인"},
 ];
-const BFD_INIT={초등_플라톤:75000,초등_이지:75000,중등_이지:140000,중등_이지수능:160000,고등_이지수능:160000,고등_개인:350000};
+const BFD_INIT={초등_플라톤:75000,초등_이지:75000,중등_플라톤:140000,중등_이지:140000,중등_이지수능:160000,고등_이지수능:160000,고등_개인:350000};
 const CC={
   초등_플라톤:{t:"#3a6ea8",bg:"#dce8f8",bd:"#9cc0ec",li:"#edf4fc"},
   초등_이지:  {t:"#5a95cc",bg:"#e4f1ff",bd:"#a8d0f0",li:"#f0f8ff"},
+  중등_플라톤:{t:"#2a4d8f",bg:"#d6e0f5",bd:"#8aa4dc",li:"#eef2fb"},
   중등_이지:  {t:"#3a9a5c",bg:"#dcf2e8",bd:"#90d4ac",li:"#ebfaf3"},
   중등_이지수능:{t:"#2a7a4a",bg:"#cceadc",bd:"#80c8a0",li:"#e5f7ee"},
   고등_이지수능:{t:"#c06020",bg:"#fce4d0",bd:"#f0a870",li:"#fff0e4"},
@@ -118,7 +120,7 @@ const CC={
 };
 const GOLD="#b8872a",BORDER="#ddd5c8",TS="#888",TM="#2c2c2c";
 const DAYS=["월","화","수","목","금","토","일"];
-const GROUPS=[{cats:["초등_플라톤","초등_이지"]},{cats:["중등_이지"]},{cats:["중등_이지수능","고등_이지수능"]},{cats:["고등_개인"]}];
+const GROUPS=[{cats:["초등_플라톤","초등_이지"]},{cats:["중등_플라톤","중등_이지"]},{cats:["중등_이지수능","고등_이지수능"]},{cats:["고등_개인"]}];
 const SK="ezp_v5_data";
 
 // ── Firebase 설정 ────────────────────────────────────────
@@ -1371,7 +1373,7 @@ function renderChart(){
   const sumCard=D({className:"card"});
   sumCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["👥 학생수 요약"])]));
   const sg=D({className:"summary-grid",style:{gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))"}});
-  const SHORT_LABEL={초등_플라톤:"플라톤",초등_이지:"초등이지",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인"};
+  const SHORT_LABEL={초등_플라톤:"초등플라톤",초등_이지:"초등이지",중등_플라톤:"중등플라톤",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인"};
   const sumCatTotals=CATS.map(c=>({key:c.key,total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
   const sumItems=[{l:"총 학생수",cnt:stList.length}];
   sumCatTotals.forEach(c=>sumItems.push({l:SHORT_LABEL[c.key]||c.key,cnt:c.cnt}));
