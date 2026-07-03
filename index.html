@@ -1157,9 +1157,18 @@ function openStudentModal(name,fbCat,fbGrade){
 
 // ── 초/중/고 레벨별 상세 모달 ────────────────────────────
 function openLevelModal(level){
-  const stList=calcStudents().filter(s=>getStudentLevel(s)===level);
+  const uniqueCount=calcStudents().filter(s=>getStudentLevel(s)===level).length;
+  // 슬롯 단위로 집계: 같은 학생이라도 분류(요일별 트랙)가 다르면 각각 별도 항목으로 보여준다.
+  const perSlotRows=calcStudentsPerSlot();
+  const agg={};
+  perSlotRows.forEach(r=>{
+    const key=r.name+"|"+r.cat;
+    if(!agg[key])agg[key]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,wc:0};
+    agg[key].wc++;
+  });
+  const stList=Object.values(agg).filter(s=>getStudentLevel(s)===level);
   const ov=mkOv(()=>ov.remove());const modal=mkModal(480);
-  modal.appendChild(mkTitle("👥",level+" 학생 현황 ("+stList.length+"명)"));
+  modal.appendChild(mkTitle("👥",level+" 학생 현황 ("+uniqueCount+"명)"));
   if(!stList.length){
     modal.appendChild(D({style:{color:"#ccc",padding:"20px 0",textAlign:"center"}},["등록된 학생이 없습니다."]));
   } else {
@@ -1171,8 +1180,9 @@ function openLevelModal(level){
     });
     grades.forEach(gr=>{
       const gStudents=gradeMap[gr];
+      const gradeUniqueNames=new Set(gStudents.map(s=>s.name));
       const gradeSec=D({style:{marginBottom:"16px"}});
-      gradeSec.appendChild(D({style:{fontWeight:"900",fontSize:"14px",color:TM,marginBottom:"8px",paddingBottom:"4px",borderBottom:`2px solid ${BORDER}`}},[gr+" ("+gStudents.length+"명)"]));
+      gradeSec.appendChild(D({style:{fontWeight:"900",fontSize:"14px",color:TM,marginBottom:"8px",paddingBottom:"4px",borderBottom:`2px solid ${BORDER}`}},[gr+" ("+gradeUniqueNames.size+"명)"]));
       const catMap={};
       gStudents.forEach(s=>{if(!catMap[s.cat])catMap[s.cat]=[];catMap[s.cat].push(s);});
       CATS.filter(c=>catMap[c.key]).forEach(c=>{
