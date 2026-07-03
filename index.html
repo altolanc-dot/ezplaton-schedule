@@ -157,6 +157,16 @@ const CC={
 const LEVEL_MAP={초등_플라톤:"초등",초등_이지:"초등",중등_플라톤:"중등",중등_이지:"중등",중등_이지수능:"중등",고등_이지수능:"고등",고등_개인:"고등"};
 const LEVELS=["초등","중등","고등"];
 const LEVEL_COLOR={초등:"#3a6ea8",중등:"#3a9a5c",고등:"#c06020"};
+// 학생의 실제 레벨(초/중/고)은 "학년" 텍스트를 최우선으로 판정한다.
+// (분류=커리큘럼 트랙이라 학년과 다를 수 있음: 예) 학년이 "중1"인데 분류가 "초등_이지"인 경우)
+// 학년에 초/중/고 접두어가 없으면(공백 등) 분류(LEVEL_MAP)로 보조 판정한다.
+function getStudentLevel(s){
+  const g=(s.grade||"").trim();
+  if(g.startsWith("초"))return "초등";
+  if(g.startsWith("중"))return "중등";
+  if(g.startsWith("고"))return "고등";
+  return LEVEL_MAP[s.cat]||"초등";
+}
 const GOLD="#a3791f",BORDER="#ddd8c8",TS="#888",TM="#2c2c2c";
 const DAYS=["월","화","수","목","금","토","일"];
 const GROUPS=[{cats:["초등_플라톤","초등_이지"]},{cats:["중등_플라톤","중등_이지"]},{cats:["중등_이지수능","고등_이지수능"]},{cats:["고등_개인"]}];
@@ -1147,7 +1157,7 @@ function openStudentModal(name,fbCat,fbGrade){
 
 // ── 초/중/고 레벨별 상세 모달 ────────────────────────────
 function openLevelModal(level){
-  const stList=calcStudents().filter(s=>LEVEL_MAP[s.cat]===level);
+  const stList=calcStudents().filter(s=>getStudentLevel(s)===level);
   const ov=mkOv(()=>ov.remove());const modal=mkModal(480);
   modal.appendChild(mkTitle("👥",level+" 학생 현황 ("+stList.length+"명)"));
   if(!stList.length){
@@ -1387,11 +1397,13 @@ function renderTT(){
           const namesWrap=D({style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"0 4px"}});
           slot.names.forEach(n=>{
             const isMatch=S.search.trim()&&n.includes(S.search.trim());
-            const nl=Sp({className:"slot-name",style:{color:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":"600",borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
+            const effCat=(slot.perStudent&&slot.perStudent[n]&&slot.perStudent[n].cat)||slot.cat;
+            const effCC=CC[effCat]||cc;
+            const nl=Sp({className:"slot-name",title:CATS.find(c=>c.key===effCat)?.label||"",style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
             const todayAtt=(S.att[n]||{})[new Date().toISOString().split("T")[0]];
             if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":"↩"]));
-            nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,slot.cat,slot.grade);});
-            nl.addEventListener("mouseenter",()=>{if(!isMatch)nl.style.background=cc.bd;});
+            nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade);});
+            nl.addEventListener("mouseenter",()=>{if(!isMatch)nl.style.background=effCC.bd;});
             nl.addEventListener("mouseleave",()=>{if(!isMatch)nl.style.background="transparent";});
             namesWrap.appendChild(nl);
           });
@@ -1627,7 +1639,7 @@ function render(){
   root.innerHTML="";
 
   const hdrStList=calcStudents();
-  const hdrLevelCounts=LEVELS.map(lv=>({lv,cnt:hdrStList.filter(s=>LEVEL_MAP[s.cat]===lv).length}));
+  const hdrLevelCounts=LEVELS.map(lv=>({lv,cnt:hdrStList.filter(s=>getStudentLevel(s)===lv).length}));
   const TAB_TITLE={tt:"플라톤 이지 국어 시간표",att:"플라톤 이지 국어 출석표",chart:"플라톤 이지 국어 통계"};
 
   const hdr=h("header",{});
