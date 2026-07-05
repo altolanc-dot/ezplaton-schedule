@@ -32,6 +32,8 @@ header::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:4p
 .hdr-pill.green{border-color:#2f8f5c;}
 .hdr-pill.green .pv{background:#2f8f5c;}
 .hdr-pill.amber{border-color:#c06020;}
+.hdr-pill.special{border-color:#0d7d6b;}
+.hdr-pill.special .pv{background:#0d7d6b;}
 .hdr-pill.amber .pv{background:#c06020;}
 main{padding:20px 28px;display:flex;flex-direction:column;gap:18px;}
 .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
@@ -157,6 +159,19 @@ const CC={
   고등_이지수능:{t:"#c06020",bg:"#fce4d0",bd:"#f0a870",li:"#fff0e4"},
   고등_개인:  {t:"#9a48a8",bg:"#f2e4f8",bd:"#d490d8",li:"#faeeff"},
 };
+const CATS2=[
+  {key:"역사특강_34",label:"역사특강(3·4학년)",sub:"역사"},
+  {key:"역사특강_56",label:"역사특강(5·6학년)",sub:"역사"},
+  {key:"요점정리특강",label:"요점정리특강(5·6학년)",sub:"요점정리"},
+  {key:"어휘력특강",  label:"어휘력특강(1·2학년)",sub:"어휘력"},
+];
+const BFD2_INIT={역사특강_34:0,역사특강_56:0,요점정리특강:0,어휘력특강:0};
+const CC2={
+  역사특강_34:{t:"#b03868",bg:"#f8dce8",bd:"#e896b8",li:"#fdeef4"},
+  역사특강_56:{t:"#9a2a58",bg:"#f5ccd8",bd:"#df84a4",li:"#faeaf0"},
+  요점정리특강:{t:"#c07020",bg:"#fce4c8",bd:"#f0b070",li:"#fff2e0"},
+  어휘력특강:  {t:"#3a6ea8",bg:"#dce8f8",bd:"#9cc0ec",li:"#edf4fc"},
+};
 const LEVEL_MAP={초등_플라톤:"초등",초등_이지:"초등",중등_플라톤:"중등",중등_이지:"중등",중등_이지수능:"중등",고등_이지수능:"고등",고등_개인:"고등"};
 const LEVELS=["초등","중등","고등"];
 const LEVEL_COLOR={초등:"#3a6ea8",중등:"#3a9a5c",고등:"#c06020"};
@@ -266,7 +281,11 @@ let S={
   meta:JSON.parse(JSON.stringify(I_META)),
   att:JSON.parse(JSON.stringify(I_ATT)),
   memo:JSON.parse(JSON.stringify(I_MEMO)),
+  sch2:[],
+  bf2:{...BFD2_INIT},
+  meta2:{},
   tab:"tt",
+  view:"main",
   attMonth:toYM(new Date()),
   saveStatus:"",
   loaded:false,
@@ -275,6 +294,7 @@ let S={
   calMonth:toYM(new Date()),
 };
 let idC=203; const nid=()=>`s${++idC}`;
+let idC2=0; const nid2=()=>`t${++idC2}`;
 let chartInst=[];
 
 function toYM(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");}
@@ -300,7 +320,7 @@ function localSave(){
 let autoSaveTimer=null,isApplyingRemote=false,firstSnapshotReceived=false;
 let lastSavedJSON=null; // 마지막으로 저장(전송)한 데이터의 스냅샷 - 불필요한 재저장/재렌더 루프 방지
 const MY_ID=Math.random().toString(36).slice(2)+Date.now();
-function packData(){return{sch:S.sch,bf:S.bf,meta:S.meta,att:S.att,memo:S.memo,sched:S.sched,revHistory:S.revHistory};}
+function packData(){return{sch:S.sch,bf:S.bf,meta:S.meta,att:S.att,memo:S.memo,sched:S.sched,revHistory:S.revHistory,sch2:S.sch2,bf2:S.bf2,meta2:S.meta2};}
 function applyData(d){
   if(d.sch&&d.sch.length)S.sch=d.sch;
   if(d.bf)S.bf={...BFD_INIT,...d.bf};
@@ -309,6 +329,9 @@ function applyData(d){
   if(d.memo)S.memo=d.memo;
   if(d.sched)S.sched=d.sched;
   if(d.revHistory)S.revHistory={...S.revHistory,...d.revHistory};
+  if(d.sch2)S.sch2=d.sch2;
+  if(d.bf2)S.bf2={...BFD2_INIT,...d.bf2};
+  if(d.meta2)S.meta2=d.meta2;
 }
 // ── 일별 교습비 추이(히스토리 누적) ─────────────────────────
 function snapshotRevenue(){
@@ -511,9 +534,16 @@ function initLoad(){
 }
 
 // ── 파생 계산 ─────────────────────────────────────────────
-function calcStudents(){
+// ── 특강(별도 시간표) 데이터 스토어 접근 ─────────────────────
+// src="main": 기존 정규 시간표 / src="special": 특강 시간표 (완전히 별도 데이터)
+function getStore(src){
+  if(src==="special")return{sch:S.sch2,setSch:v=>{S.sch2=v;},meta:S.meta2,bf:S.bf2,cats:CATS2,cc:CC2};
+  return{sch:S.sch,setSch:v=>{S.sch=v;},meta:S.meta,bf:S.bf,cats:CATS,cc:CC};
+}
+function calcStudents(src="main"){
+  const store=getStore(src);
   const m={};
-  S.sch.forEach(slot=>{
+  store.sch.forEach(slot=>{
     (slot.names||[]).forEach(n=>{
       const ps=(slot.perStudent&&slot.perStudent[n])||{};
       const cat=ps.cat||slot.cat;
@@ -522,40 +552,42 @@ function calcStudents(){
     });
   });
   return Object.values(m).map(s=>{
-    const meta=S.meta[s.name]||{};
+    const meta=store.meta[s.name]||{};
     const free=!!meta.free;
     const grade=meta.grade||s.slots[0]?.slotGrade||"";
     // 슬롯별로 집계
     const monthly=free?0:s.slots.reduce((a,sl)=>{
-      const fee=sl.fee!==undefined?sl.fee:(meta.fee!==undefined?Number(meta.fee):(S.bf[sl.cat]||0));
+      const fee=sl.fee!==undefined?sl.fee:(meta.fee!==undefined?Number(meta.fee):(store.bf[sl.cat]||0));
       return a+fee;
     },0);
     // 대표 분류: 가장 많이 등장하는 cat
     const catCount={};s.slots.forEach(sl=>{catCount[sl.cat]=(catCount[sl.cat]||0)+1;});
-    const cat=Object.keys(catCount).sort((a,b)=>catCount[b]-catCount[a])[0]||"초등_플라톤";
-    const fee=free?0:(s.slots[0]?.fee!==undefined?s.slots[0].fee:(meta.fee!==undefined?Number(meta.fee):(S.bf[cat]||0)));
+    const cat=Object.keys(catCount).sort((a,b)=>catCount[b]-catCount[a])[0]||store.cats[0].key;
+    const fee=free?0:(s.slots[0]?.fee!==undefined?s.slots[0].fee:(meta.fee!==undefined?Number(meta.fee):(store.bf[cat]||0)));
     return{name:s.name,cat,grade,free,wc:s.slots.length,fee,monthly,memo:meta.memo||"",regDate:meta.regDate||""};
   });
 }
 // ── 슬롯별 학생 분류/교습비 집계 (교습비 현황용) ─────────────
-function calcStudentsPerSlot(){
+function calcStudentsPerSlot(src="main"){
+  const store=getStore(src);
   const rows=[];
-  S.sch.forEach(slot=>{
+  store.sch.forEach(slot=>{
     (slot.names||[]).forEach(n=>{
       const ps=(slot.perStudent&&slot.perStudent[n])||{};
-      const meta=S.meta[n]||{};
+      const meta=store.meta[n]||{};
       const free=!!meta.free;
       const cat=ps.cat||slot.cat;
-      const fee=free?0:(ps.fee!==undefined?ps.fee:(meta.fee!==undefined?Number(meta.fee):(S.bf[cat]||0)));
+      const fee=free?0:(ps.fee!==undefined?ps.fee:(meta.fee!==undefined?Number(meta.fee):(store.bf[cat]||0)));
       const grade=meta.grade||slot.grade;
       rows.push({name:n,cat,grade,free,fee,slotId:slot.id});
     });
   });
   return rows;
 }
-function buildCellMaps(){
+function buildCellMaps(src="main"){
+  const store=getStore(src);
   const cmap={},smap={};
-  S.sch.forEach(s=>{
+  store.sch.forEach(s=>{
     if(!(s.names&&s.names.length))return;
     const k=`${s.time}_${s.day}`;
     if(!cmap[k])cmap[k]=s;
@@ -585,9 +617,10 @@ function calcMonthlyRevenue(){
     return{ym,label:Number(ym.split("-")[1])+"월",total};
   });
 }
-function calcCategoryHours(){
+function calcCategoryHours(src="main"){
+  const store=getStore(src);
   const hrs={};
-  S.sch.forEach(slot=>{
+  store.sch.forEach(slot=>{
     if(!slot.names||!slot.names.length)return;
     const h=(slot.span||2)/2;
     const perStudent=slot.perStudent||{};
@@ -728,20 +761,21 @@ function mkDelConfirm(onYes,onNo){
 }
 
 // ── 셀 모달 ──────────────────────────────────────────────
-function openCellModal(time,day){
-  const{cmap}=buildCellMaps();
+function openCellModal(time,day,src="main"){
+  const store=getStore(src);
+  const{cmap}=buildCellMaps(src);
   const slot=cmap[`${time}_${day}`];
   let ms={
     time,day,sid:slot?.id||null,
-    grade:slot?.grade||"",cat:slot?.cat||"초등_플라톤",
+    grade:slot?.grade||"",cat:slot?.cat||store.cats[0].key,
     nt:slot?(slot.names||[]).join("\n"):"",
     span:String(slot?.span||2),stInfos:[]
   };
   const buildSI=(names,cat,slot)=>names.map(n=>{
-    const meta=S.meta[n]||{};const free=!!meta.free;
+    const meta=store.meta[n]||{};const free=!!meta.free;
     const ps=(slot?.perStudent&&slot.perStudent[n])||{};
     const indCat=ps.cat||cat;
-    const fee=free?0:(ps.fee!==undefined?ps.fee:(meta.fee!==undefined?meta.fee:(S.bf[indCat]||0)));
+    const fee=free?0:(ps.fee!==undefined?ps.fee:(meta.fee!==undefined?meta.fee:(store.bf[indCat]||0)));
     return{name:n,free,fee,cat:indCat};
   });
   const syncSI=(nt,cat,cur)=>nt.split("\n").map(n=>n.trim()).filter(Boolean).map(n=>cur.find(i=>i.name===n)||buildSI([n],cat,slot)[0]);
@@ -752,7 +786,7 @@ function openCellModal(time,day){
       function confirm(){
     const names=ms.nt.split("\n").map(n=>n.trim()).filter(Boolean);
     const sp=Math.max(1,parseInt(ms.span)||2);
-    if(!names.length){S.sch=S.sch.filter(s=>!(s.time===time&&s.day===day));close();render();return;}
+    if(!names.length){store.setSch(store.sch.filter(s=>!(s.time===time&&s.day===day)));close();render();return;}
     // perStudent: 슬롯 기본 분류와 다른 경우만 저장
     const perStudent={};
     ms.stInfos.forEach(si=>{
@@ -761,24 +795,24 @@ function openCellModal(time,day){
       if(!si.free)entry.fee=si.fee;
       if(Object.keys(entry).length)perStudent[si.name]=entry;
     });
-    if(ms.sid)S.sch=S.sch.map(s=>s.id===ms.sid?{...s,names,grade:ms.grade,cat:ms.cat,span:sp,perStudent}:s);
-    else S.sch=[...S.sch,{id:nid(),time,day,names,grade:ms.grade,cat:ms.cat,span:sp,perStudent}];
-    snapshotRevenue();
+    if(ms.sid)store.setSch(store.sch.map(s=>s.id===ms.sid?{...s,names,grade:ms.grade,cat:ms.cat,span:sp,perStudent}:s));
+    else store.setSch([...store.sch,{id:src==="special"?nid2():nid(),time,day,names,grade:ms.grade,cat:ms.cat,span:sp,perStudent}]);
+    if(src==="main")snapshotRevenue();
     close();render();
   }
   function rebuild(){
     modal.innerHTML="";
-    modal.appendChild(mkTitle("✏️",time.replace(/[AP]M /,"")+" ("+day+"요일)"));
+    modal.appendChild(mkTitle("✏️",(src==="special"?"[특강] ":"")+time.replace(/[AP]M /,"")+" ("+day+"요일)"));
     modal.appendChild(fLbl("분류"));
     const cg=D({className:"cat-grid",style:{marginBottom:"14px"}});
-    CATS.forEach(c=>{const cc=CC[c.key],sel=ms.cat===c.key;
+    store.cats.forEach(c=>{const cc=store.cc[c.key],sel=ms.cat===c.key;
       cg.appendChild(Bt({className:"cat-btn",style:{borderColor:sel?cc.t:BORDER,background:sel?cc.bg:"#faf8f4",color:sel?cc.t:TS,fontWeight:sel?"800":"400"},
-        onClick:()=>{ms.cat=c.key;ms.stInfos=syncSI(ms.nt,c.key,ms.stInfos).map(si=>({...si,fee:si.free?0:(S.bf[c.key]||0)}));rebuild();}},[c.label]));
+        onClick:()=>{ms.cat=c.key;ms.stInfos=syncSI(ms.nt,c.key,ms.stInfos).map(si=>({...si,fee:si.free?0:(store.bf[c.key]||0)}));rebuild();}},[c.label]));
     });
     modal.appendChild(cg);
     const r2=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"14px"}});
     const gd=D({},[fLbl("학년/반")]);
-    const gi=Inp({className:"field-input",value:ms.grade,placeholder:"예) 초5, 중3"});
+    const gi=Inp({className:"field-input",value:ms.grade,placeholder:src==="special"?"예) 3·4학년":"예) 초5, 중3"});
     gi.addEventListener("input",e=>ms.grade=e.target.value);gd.appendChild(gi);r2.appendChild(gd);
     const sd=D({},[fLbl("수업 길이")]);
     const sr=D({className:"span-row"});
@@ -800,26 +834,25 @@ function openCellModal(time,day){
       const names=ms.nt.split("\n").map(n=>n.trim()).filter(Boolean);
       if(!names.length)return;
       ms.stInfos=syncSI(ms.nt,ms.cat,ms.stInfos);
-      const cc=CC[ms.cat];
       fc.appendChild(D({style:{fontSize:"11px",color:TS,fontWeight:"600",marginBottom:"7px"}},["📊 교습비 (회당)"]));
       ms.stInfos.forEach((si,i)=>{
         const siCat=si.cat||ms.cat;
-        const cc2=CC[siCat];
+        const cc2=store.cc[siCat];
         const card=D({className:"fee-calc-card",style:{background:cc2.li,borderColor:cc2.bd}});
         const tr=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"6px"}});
         const ne=Sp({style:{fontWeight:"700",fontSize:"13px",color:cc2.t,cursor:"pointer",textDecoration:"underline dotted"}},[si.name]);
-        ne.addEventListener("click",e=>{e.stopPropagation();openStudentModal(si.name,siCat,ms.grade);});
+        ne.addEventListener("click",e=>{e.stopPropagation();openStudentModal(si.name,siCat,ms.grade,src);});
         tr.appendChild(ne);
         if(si.free)tr.appendChild(Sp({style:{fontSize:"11px",color:"#e05a5a",fontWeight:"800",background:"#fff0f0",borderRadius:"5px",padding:"2px 7px"}},["무료"]));
         else tr.appendChild(Sp({className:"fee-lbl",style:{fontSize:"13px",fontWeight:"800",color:GOLD}},[si.fee.toLocaleString()+"원/회"]));
         card.appendChild(tr);
         // 개별 분류 선택
         const catRow=D({style:{display:"flex",gap:"3px",flexWrap:"wrap",marginBottom:"6px"}});
-        CATS.forEach(c=>{
-          const sel=siCat===c.key;const cc3=CC[c.key];
+        store.cats.forEach(c=>{
+          const sel=siCat===c.key;const cc3=store.cc[c.key];
           catRow.appendChild(Bt({style:{padding:"2px 7px",borderRadius:"6px",border:`1px solid ${sel?cc3.t:BORDER}`,background:sel?cc3.bg:"#faf8f4",color:sel?cc3.t:TS,fontWeight:sel?"800":"400",fontSize:"10px",cursor:"pointer"},
             onClick:()=>{
-              ms.stInfos[i]={...ms.stInfos[i],cat:c.key,fee:si.free?0:(S.meta[si.name]?.fee!==undefined?S.meta[si.name].fee:(S.bf[c.key]||0))};
+              ms.stInfos[i]={...ms.stInfos[i],cat:c.key,fee:si.free?0:(store.meta[si.name]?.fee!==undefined?store.meta[si.name].fee:(store.bf[c.key]||0))};
               rebuildFee();
             }},[c.label]));
         });
@@ -848,15 +881,16 @@ function openCellModal(time,day){
 }
 
 // ── 학생 모달 ────────────────────────────────────────────
-function openStudentModal(name,fbCat,fbGrade){
-  const stList=calcStudents();
+function openStudentModal(name,fbCat,fbGrade,src="main"){
+  const store=getStore(src);
+  const stList=calcStudents(src);
   const st=stList.find(s=>s.name===name);
   let ms={
-    name,cat:st?.cat||fbCat||"초등_플라톤",
+    name,cat:st?.cat||fbCat||store.cats[0].key,
     grade:st?.grade||fbGrade||"",
     free:st?.free||false,
-    fv:String(st?.fee||(S.bf[st?.cat||fbCat]||0)),
-    regDate:S.meta[name]?.regDate||"",
+    fv:String(st?.fee||(store.bf[st?.cat||fbCat]||0)),
+    regDate:store.meta[name]?.regDate||"",
     activeTab:"info",
     infoEditTs:null,
     memoEditTs:null,
@@ -866,9 +900,9 @@ function openStudentModal(name,fbCat,fbGrade){
   const ov=mkOv(close);const modal=mkModal(700);
   function close(){ov.remove();}
   function saveMeta(){
-    S.meta[ms.name]={...(S.meta[ms.name]||{}),cat:ms.cat,grade:ms.grade,free:ms.free,fee:ms.free?0:Number(ms.fv),regDate:ms.regDate};
-    S.sch=S.sch.map(s=>{if((s.names||[]).includes(ms.name)&&s.names.length===1)return{...s,cat:ms.cat,grade:ms.grade};return s;});
-    snapshotRevenue();
+    store.meta[ms.name]={...(store.meta[ms.name]||{}),cat:ms.cat,grade:ms.grade,free:ms.free,fee:ms.free?0:Number(ms.fv),regDate:ms.regDate};
+    store.setSch(store.sch.map(s=>{if((s.names||[]).includes(ms.name)&&s.names.length===1)return{...s,cat:ms.cat,grade:ms.grade};return s;}));
+    if(src==="main")snapshotRevenue();
     close();render();
   }
 
@@ -890,9 +924,9 @@ function openStudentModal(name,fbCat,fbGrade){
       left.appendChild(mkTitle("👤",ms.name));
       left.appendChild(fLbl("분류"));
       const cg=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px",marginBottom:"12px"}});
-      CATS.forEach(c=>{const cc=CC[c.key],sel=ms.cat===c.key;
+      store.cats.forEach(c=>{const cc=store.cc[c.key],sel=ms.cat===c.key;
         cg.appendChild(Bt({style:{padding:"6px 8px",borderRadius:"8px",border:`1.5px solid ${sel?cc.t:BORDER}`,background:sel?cc.bg:"#faf8f4",color:sel?cc.t:TS,fontWeight:sel?"800":"400",fontSize:"12px",cursor:"pointer"},
-          onClick:()=>{ms.cat=c.key;if(!ms.free)ms.fv=String(S.bf[c.key]||0);build();}},[c.label]));
+          onClick:()=>{ms.cat=c.key;if(!ms.free)ms.fv=String(store.bf[c.key]||0);build();}},[c.label]));
       });
       left.appendChild(cg);
       left.appendChild(fLbl("학년"));
@@ -915,10 +949,10 @@ function openStudentModal(name,fbCat,fbGrade){
         fi.addEventListener("input",e=>ms.fv=e.target.value);
         frow.appendChild(fi);frow.appendChild(Sp({style:{color:TS,whiteSpace:"nowrap",fontSize:"12px"}},["원/회"]));left.appendChild(frow);
         const dr=D({style:{fontSize:"11px",color:TS,marginBottom:"12px",display:"flex",alignItems:"center",gap:"6px"}},[
-          "기본값: "+(S.bf[ms.cat]||0).toLocaleString()+"원"
+          "기본값: "+(store.bf[ms.cat]||0).toLocaleString()+"원"
         ]);
         dr.appendChild(Bt({style:{fontSize:"11px",color:GOLD,background:"none",border:"none",textDecoration:"underline",cursor:"pointer"},
-          onClick:()=>{ms.fv=String(S.bf[ms.cat]||0);build();}},["적용"]));
+          onClick:()=>{ms.fv=String(store.bf[ms.cat]||0);build();}},["적용"]));
         left.appendChild(dr);
       }
       const lr=D({className:"modal-row"});
@@ -1213,6 +1247,60 @@ function openLevelModal(level){
   ov.appendChild(modal);document.body.appendChild(ov);
 }
 
+// ── 특강 학생 현황 모달 (초/중/고 모달과 동일한 구조, 특강 스토어 기준) ──
+function openSpecialLevelModal(){
+  const uniqueCount=calcStudents("special").length;
+  const perSlotRows=calcStudentsPerSlot("special");
+  const agg={};
+  perSlotRows.forEach(r=>{
+    const key=r.name+"|"+r.cat;
+    if(!agg[key])agg[key]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,wc:0};
+    agg[key].wc++;
+  });
+  const stList=Object.values(agg);
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(480);
+  modal.appendChild(mkTitle("🏖","특강 학생 현황 ("+uniqueCount+"명)"));
+  if(!stList.length){
+    modal.appendChild(D({style:{color:"#ccc",padding:"20px 0",textAlign:"center"}},["등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요."]));
+  } else {
+    const gradeMap={};
+    stList.forEach(s=>{const g=s.grade||"학년미상";if(!gradeMap[g])gradeMap[g]=[];gradeMap[g].push(s);});
+    const grades=Object.keys(gradeMap).sort((a,b)=>{
+      const na=parseInt(a.replace(/\D/g,""))||99,nb=parseInt(b.replace(/\D/g,""))||99;
+      return na-nb;
+    });
+    grades.forEach(gr=>{
+      const gStudents=gradeMap[gr];
+      const gradeUniqueNames=new Set(gStudents.map(s=>s.name));
+      const gradeSec=D({style:{marginBottom:"16px"}});
+      gradeSec.appendChild(D({style:{fontWeight:"900",fontSize:"14px",color:TM,marginBottom:"8px",paddingBottom:"4px",borderBottom:`2px solid ${BORDER}`}},[gr+" ("+gradeUniqueNames.size+"명)"]));
+      const catMap={};
+      gStudents.forEach(s=>{if(!catMap[s.cat])catMap[s.cat]=[];catMap[s.cat].push(s);});
+      CATS2.filter(c=>catMap[c.key]).forEach(c=>{
+        const lst=catMap[c.key];const cc=CC2[c.key];
+        const sec=D({style:{marginBottom:"10px"}});
+        const secHead=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"6px"}});
+        secHead.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[c.label+" ("+lst.length+"명)"]));
+        sec.appendChild(secHead);
+        const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"6px"}});
+        lst.forEach(s=>{
+          const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`},onClick:()=>{ov.remove();openStudentModal(s.name,s.cat,s.grade,"special");}});
+          chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
+          chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[(s.grade?s.grade+" · ":"")+(s.free?"무료":"주"+s.wc+"회")]));
+          chips.appendChild(chip);
+        });
+        sec.appendChild(chips);
+        gradeSec.appendChild(sec);
+      });
+      modal.appendChild(gradeSec);
+    });
+  }
+  const br=D({className:"modal-row"});
+  br.appendChild(Bt({className:"btn btn-primary",onClick:()=>ov.remove()},["닫기"]));
+  modal.appendChild(br);
+  ov.appendChild(modal);document.body.appendChild(ov);
+}
+
 // ── 데이터 내보내기 모달 ─────────────────────────────────
 function openExportModal(){
   const ov=mkOv(()=>ov.remove());const modal=mkModal(460);
@@ -1300,7 +1388,7 @@ function renderKpiSummary(){
 }
 
 // ── 탭: 시간표 ───────────────────────────────────────────
-function renderCombinedStatCard(){
+function buildMainFeeTable(){
   const stList=calcStudents();
   const rows=calcStudentsPerSlot();
   // 분류별 집계
@@ -1314,8 +1402,6 @@ function renderCombinedStatCard(){
   });
   const grand=Object.values(catMap).reduce((a,c)=>a+c.total,0);
   const catTotals=CATS.map(c=>({...c,students:Object.values(catMap[c.key]?.students||{}),total:catMap[c.key]?.total||0})).filter(c=>c.students.length>0);
-  const card=D({className:"card"});
-  card.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["💰 교습비 현황"])]));
   const tbl=h("table",{className:"stat"});
   tbl.appendChild(h("thead",{},[h("tr",{},[
     h("th",{style:{width:"118px",textAlign:"left"}},["분류"]),
@@ -1358,25 +1444,86 @@ function renderCombinedStatCard(){
   });
   tbl.appendChild(tb);
   tbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{colspan:"3",style:{color:TS}},["전체 합계 ("+stList.length+"명)"]),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900",fontSize:"14px",whiteSpace:"nowrap"}},[grand.toLocaleString()+"원"]),h("td",{})])]));
-  card.appendChild(tbl);
+  return tbl;
+}
+function buildSpecialFeeTable(){
+  const rows=calcStudentsPerSlot("special");
+  const agg={};
+  rows.forEach(r=>{
+    const key=r.name+"|"+r.cat;
+    if(!agg[key])agg[key]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,wc:0,monthly:0};
+    agg[key].wc++;
+    agg[key].monthly+=r.free?0:r.fee;
+  });
+  const list=Object.values(agg);
+  const grand=list.reduce((a,s)=>a+s.monthly,0);
+  if(!list.length)return D({style:{color:"#ccc",padding:"20px",textAlign:"center",fontSize:"12px"}},["등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요."]);
+  const tbl=h("table",{className:"stat"});
+  tbl.appendChild(h("thead",{},[h("tr",{},[
+    h("th",{style:{width:"140px",textAlign:"left"}},["분류"]),
+    h("th",{style:{textAlign:"left"}},["학생"]),
+    h("th",{style:{textAlign:"right",width:"140px"}},["교습비"])
+  ])]));
+  const tb=h("tbody",{});
+  CATS2.forEach(c=>{
+    const lst=list.filter(s=>s.cat===c.key);
+    if(!lst.length)return;
+    const cc=CC2[c.key];
+    const sub=lst.reduce((a,s)=>a+s.monthly,0);
+    const tr=h("tr",{});
+    tr.appendChild(h("td",{style:{whiteSpace:"nowrap"}},[Sp({style:{color:cc.t,fontWeight:"800",fontSize:"12px"}},[c.label]),Sp({style:{color:TS,fontSize:"11px",marginLeft:"4px"}},["("+lst.length+"명)"])]));
+    const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"5px"}});
+    lst.forEach(s=>{
+      const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`},onClick:()=>openStudentModal(s.name,s.cat,s.grade,"special")});
+      chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
+      chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[(s.grade?s.grade+" · ":"")+(s.free?"무료":s.wc+"회·"+s.monthly.toLocaleString()+"원")]));
+      chips.appendChild(chip);
+    });
+    tr.appendChild(h("td",{},[chips]));
+    tr.appendChild(h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"700",fontSize:"12px",whiteSpace:"nowrap"}},[sub.toLocaleString()+"원"]));
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);
+  tbl.appendChild(h("tfoot",{},[h("tr",{},[h("td",{style:{color:TS}},["특강 전체 합계 ("+list.length+"명)"]),h("td",{}),h("td",{style:{textAlign:"right",color:GOLD,fontWeight:"900",fontSize:"14px",whiteSpace:"nowrap"}},[grand.toLocaleString()+"원"])])]));
+  return tbl;
+}
+function renderCombinedStatCard(){
+  const card=D({className:"card"});
+  const head=D({className:"card-head"});
+  const headLeft=D({style:{display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}});
+  headLeft.appendChild(Sp({className:"card-title"},["💰 교습비 현황"]));
+  const sw=D({className:"no-print",style:{display:"flex",gap:"4px",background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"3px"}});
+  [{v:"main",l:"정규"},{v:"special",l:"🏖 특강"}].forEach(o=>{
+    const sel=(S.statView||"main")===o.v;
+    sw.appendChild(Bt({style:{padding:"5px 12px",borderRadius:"7px",fontSize:"11px",fontWeight:sel?"800":"500",border:"none",background:sel?GOLD:"transparent",color:sel?"#fff":TS,cursor:"pointer"},
+      onClick:()=>{S.statView=o.v;render();}},[o.l]));
+  });
+  headLeft.appendChild(sw);
+  head.appendChild(headLeft);
+  card.appendChild(head);
+  card.appendChild((S.statView||"main")==="special"?buildSpecialFeeTable():buildMainFeeTable());
   return card;
 }
 
-function renderTT(){
-  const{cmap,smap}=buildCellMaps();
-  const wrap=D({});
-  const stList=calcStudents();
-
-  const topGrid=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:"16px"}});
-  topGrid.appendChild(renderTodayCard());
-  topGrid.appendChild(renderScheduleCalendar());
-  wrap.appendChild(topGrid);
+function buildScheduleCard(src){
+  const store=getStore(src);
+  const{cmap,smap}=buildCellMaps(src);
+  const isSpecial=src==="special";
 
   const ttCard=D({className:"card"});
   const ttHead=D({className:"card-head"});
-  ttHead.appendChild(Sp({className:"card-title"},["📅 주간 시간표"]));
+  const headLeft=D({style:{display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}});
+  headLeft.appendChild(Sp({className:"card-title"},[isSpecial?"🏖 특강 시간표":"📅 주간 시간표"]));
+  const viewSwitch=D({className:"no-print",style:{display:"flex",gap:"4px",background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"3px"}});
+  [{v:"main",l:"정규 시간표"},{v:"special",l:"🏖 특강 시간표"}].forEach(o=>{
+    const sel=S.view===o.v;
+    viewSwitch.appendChild(Bt({style:{padding:"5px 12px",borderRadius:"7px",fontSize:"11px",fontWeight:sel?"800":"500",border:"none",background:sel?GOLD:"transparent",color:sel?"#fff":TS,cursor:"pointer"},
+      onClick:()=>{S.view=o.v;render();}},[o.l]));
+  });
+  headLeft.appendChild(viewSwitch);
+  ttHead.appendChild(headLeft);
   const legWrap=D({style:{display:"flex",gap:"5px",flexWrap:"wrap",alignItems:"center"}});
-  CATS.forEach(c=>{const cc=CC[c.key];legWrap.appendChild(Sp({className:"leg-badge",style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`}},[c.label]));});
+  store.cats.forEach(c=>{const cc=store.cc[c.key];legWrap.appendChild(Sp({className:"leg-badge",style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`}},[c.label]));});
   legWrap.appendChild(Sp({className:"no-print",style:{color:"#ccc",fontSize:"11px"}},["· 클릭 편집 · 드래그 이동"]));
   ttHead.appendChild(legWrap);ttCard.appendChild(ttHead);
 
@@ -1399,23 +1546,23 @@ function renderTT(){
       DAYS.forEach(d=>{
         const k=`${tk}_${d}`;if(smap[k])return;
         const slot=cmap[k];const has=!!slot;
-        const cc=has?CC[slot.cat]:null;const spanV=has?(slot.span||2):1;
+        const cc=has?store.cc[slot.cat]:null;const spanV=has?(slot.span||2):1;
         if(has){
           const td=h("td",{rowspan:String(spanV),draggable:"true",className:"slot-cell",style:{background:cc.bg,border:`1px solid ${cc.bd}`}});
           td.addEventListener("dragstart",e=>{dragId=slot.id;e.dataTransfer.effectAllowed="move";td.style.opacity="0.3";});
           td.addEventListener("dragend",()=>{dragId=null;td.style.opacity="1";});
-          td.addEventListener("click",e=>{if(e.target.classList.contains("slot-name"))return;openCellModal(tk,d);});
-          const gl=D({className:"slot-grade",style:{color:cc.t}},[tk.replace(/[AP]M /,"")+" · "+slot.grade+" · "+(CATS.find(c=>c.key===slot.cat)?.sub||"")]);
-          gl.addEventListener("click",()=>openCellModal(tk,d));td.appendChild(gl);
+          td.addEventListener("click",e=>{if(e.target.classList.contains("slot-name"))return;openCellModal(tk,d,src);});
+          const gl=D({className:"slot-grade",style:{color:cc.t}},[tk.replace(/[AP]M /,"")+" · "+slot.grade+" · "+(store.cats.find(c=>c.key===slot.cat)?.sub||"")]);
+          gl.addEventListener("click",()=>openCellModal(tk,d,src));td.appendChild(gl);
           const namesWrap=D({style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"0 4px"}});
           slot.names.forEach(n=>{
             const isMatch=S.search.trim()&&n.includes(S.search.trim());
             const effCat=(slot.perStudent&&slot.perStudent[n]&&slot.perStudent[n].cat)||slot.cat;
-            const effCC=CC[effCat]||cc;
-            const nl=Sp({className:"slot-name",title:CATS.find(c=>c.key===effCat)?.label||"",style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
+            const effCC=store.cc[effCat]||cc;
+            const nl=Sp({className:"slot-name",title:store.cats.find(c=>c.key===effCat)?.label||"",style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
             const todayAtt=(S.att[n]||{})[new Date().toISOString().split("T")[0]];
             if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":"↩"]));
-            nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade);});
+            nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade,src);});
             nl.addEventListener("mouseenter",()=>{if(!isMatch)nl.style.background=effCC.bd;});
             nl.addEventListener("mouseleave",()=>{if(!isMatch)nl.style.background="transparent";});
             namesWrap.appendChild(nl);
@@ -1424,17 +1571,17 @@ function renderTT(){
           tr.appendChild(td);
         } else {
           const td=h("td",{className:"empty-cell"});
-          td.addEventListener("click",()=>openCellModal(tk,d));
+          td.addEventListener("click",()=>openCellModal(tk,d,src));
           td.addEventListener("dragover",e=>{e.preventDefault();td.style.background="#fffbe6";td.style.border=`2px dashed ${GOLD}`;});
           td.addEventListener("dragleave",()=>{td.style.background="";td.style.border="";});
           td.addEventListener("drop",e=>{
             e.preventDefault();td.style.background="";td.style.border="";
             if(!dragId)return;
-            const fs=S.sch.find(s=>s.id===dragId);if(!fs)return;
-            const{cmap:cm2}=buildCellMaps();
+            const fs=store.sch.find(s=>s.id===dragId);if(!fs)return;
+            const{cmap:cm2}=buildCellMaps(src);
             if(cm2[`${tk}_${d}`]&&cm2[`${tk}_${d}`].id!==dragId)return;
             if(fs.span>1){const ti2=AK.indexOf(tk);for(let i=1;i<fs.span;i++){if(cm2[`${AK[ti2+i]}_${d}`]&&cm2[`${AK[ti2+i]}_${d}`].id!==dragId)return;}}
-            S.sch=S.sch.map(s=>s.id===dragId?{...s,time:tk,day:d}:s);
+            store.setSch(store.sch.map(s=>s.id===dragId?{...s,time:tk,day:d}:s));
             dragId=null;render();
           });
           td.appendChild(Sp({style:{color:"#e4ddd2",fontSize:"14px"}},["＋"]));tr.appendChild(td);
@@ -1443,8 +1590,20 @@ function renderTT(){
       tbody.appendChild(tr);
     });
   });
-  table.appendChild(tbody);ttWrap.appendChild(table);ttCard.appendChild(ttWrap);wrap.appendChild(ttCard);
+  table.appendChild(tbody);ttWrap.appendChild(table);ttCard.appendChild(ttWrap);
+  return ttCard;
+}
 
+// ── 특강(별도 시간표) 교습비 현황 카드 (통계 탭, 정규 시간표와 완전 별도 집계) ──
+function renderTT(){
+  const wrap=D({});
+  if(S.view==="main"){
+    const topGrid=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:"16px"}});
+    topGrid.appendChild(renderTodayCard());
+    topGrid.appendChild(renderScheduleCalendar());
+    wrap.appendChild(topGrid);
+  }
+  wrap.appendChild(buildScheduleCard(S.view));
   return wrap;
 }
 
@@ -1452,16 +1611,33 @@ function renderTT(){
 
 // ── 탭: 출결 ────────────────────────────────────────────
 function renderAtt(){
-  const stList=calcStudents();
+  const src=S.attView||"main";
+  const store=getStore(src);
+  const stList=calcStudents(src);
   const wrap=D({});
   const attCard=D({className:"card"});
   const cardHead=D({className:"card-head"});
-  cardHead.appendChild(Sp({className:"card-title"},["📅 출결 현황 — "+ymLabel(S.attMonth)]));
+  const headLeft=D({style:{display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}});
+  headLeft.appendChild(Sp({className:"card-title"},[(src==="special"?"🏖 특강 출결 현황 — ":"📅 출결 현황 — ")+ymLabel(S.attMonth)]));
+  const attSwitch=D({className:"no-print",style:{display:"flex",gap:"4px",background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"3px"}});
+  [{v:"main",l:"정규"},{v:"special",l:"🏖 특강"}].forEach(o=>{
+    const sel=src===o.v;
+    attSwitch.appendChild(Bt({style:{padding:"5px 12px",borderRadius:"7px",fontSize:"11px",fontWeight:sel?"800":"500",border:"none",background:sel?GOLD:"transparent",color:sel?"#fff":TS,cursor:"pointer"},
+      onClick:()=>{S.attView=o.v;render();}},[o.l]));
+  });
+  headLeft.appendChild(attSwitch);
+  cardHead.appendChild(headLeft);
   const mnav=D({className:"month-nav"});
   mnav.appendChild(Bt({style:{width:"30px",height:"30px",borderRadius:"8px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"14px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,-1);render();}},["◀"]));
   mnav.appendChild(Sp({className:"month-lbl"},[ymLabel(S.attMonth)]));
   mnav.appendChild(Bt({style:{width:"30px",height:"30px",borderRadius:"8px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"14px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,1);render();}},["▶"]));
   cardHead.appendChild(mnav);attCard.appendChild(cardHead);
+
+  if(!stList.length){
+    attCard.appendChild(D({style:{color:"#ccc",padding:"24px",textAlign:"center",fontSize:"12px"}},[src==="special"?"등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요.":"등록된 학생이 없습니다."]));
+    wrap.appendChild(attCard);
+    return wrap;
+  }
 
   const tblWrap=D({style:{overflowX:"auto"}});
   const tbl=h("table",{className:"att-tbl"});
@@ -1485,12 +1661,12 @@ function renderAtt(){
   thead.appendChild(htr);tbl.appendChild(thead);
   const tbody=h("tbody",{});
   stList.forEach((st,ri)=>{
-    const cc=CC[st.cat];const rec=S.att[st.name]||{};
+    const cc=store.cc[st.cat];const rec=S.att[st.name]||{};
     const tr=h("tr",{style:{background:ri%2===0?"#fff":"#f5f3ee"}});
     const ntd=h("td",{style:{paddingLeft:"14px",fontWeight:"700",cursor:"pointer",color:cc.t}});
-    ntd.addEventListener("click",()=>openStudentModal(st.name,st.cat,st.grade));
+    ntd.addEventListener("click",()=>openStudentModal(st.name,st.cat,st.grade,src));
     ntd.appendChild(Sp({style:{textDecoration:"underline dotted",textUnderlineOffset:"3px"}},[st.name]));tr.appendChild(ntd);
-    tr.appendChild(h("td",{style:{textAlign:"center"}},[Sp({style:{background:cc.bg,color:cc.t,borderRadius:"5px",padding:"1px 6px",fontSize:"10px",fontWeight:"700"}},[CATS.find(c=>c.key===st.cat)?.sub||""])]));
+    tr.appendChild(h("td",{style:{textAlign:"center"}},[Sp({style:{background:cc.bg,color:cc.t,borderRadius:"5px",padding:"1px 6px",fontSize:"10px",fontWeight:"700"}},[store.cats.find(c=>c.key===st.cat)?.sub||""])]));
     let O=0,X=0,Dv=0;
     for(let d=1;d<=days;d++){
       const dk=S.attMonth+"-"+String(d).padStart(2,"0");const v=rec[dk];
@@ -1526,6 +1702,7 @@ function renderAtt(){
 // ── 탭: 통계 ────────────────────────────────────────────
 function renderChart(){
   chartInst.forEach(c=>{try{c.destroy();}catch(e){}});chartInst=[];
+  const isSpecialStat=(S.statView||"main")==="special";
   const stList=calcStudents();
   const slotRows2=calcStudentsPerSlot();
   const catFeeMap2={};
@@ -1555,11 +1732,16 @@ function renderChart(){
   wrap.appendChild(renderCombinedStatCard());
 
   const chartCard=D({className:"card"});
-  chartCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["📈 통계 차트"])]));
+  chartCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},[isSpecialStat?"📈 특강 통계 차트":"📈 통계 차트"])]));
   const cGrid=D({className:"chart-grid"});
   const feeBox=D({className:"chart-box"});const feeCanvas=h("canvas",{});feeBox.appendChild(feeCanvas);cGrid.appendChild(feeBox);
   const hourBox=D({className:"chart-box"});const hourCanvas=h("canvas",{});hourBox.appendChild(hourCanvas);cGrid.appendChild(hourBox);
-  const barBox=D({className:"chart-box",style:{gridColumn:"1 / -1"}});const barCanvas=h("canvas",{});barBox.appendChild(barCanvas);cGrid.appendChild(barBox);
+  let barCanvas=null;
+  if(!isSpecialStat){
+    const barBox=D({className:"chart-box",style:{gridColumn:"1 / -1"}});barCanvas=h("canvas",{});barBox.appendChild(barCanvas);cGrid.appendChild(barBox);
+  } else {
+    cGrid.appendChild(D({style:{gridColumn:"1 / -1",textAlign:"center",color:"#ccc",fontSize:"12px",padding:"10px 0"}},["※ 특강은 기간이 짧아 일별 변동 추이는 제공하지 않습니다."]));
+  }
   chartCard.appendChild(cGrid);
   wrap.appendChild(chartCard);
 
@@ -1605,43 +1787,48 @@ function renderChart(){
       }
     };
 
-    // 교습비 차트: calcStudentsPerSlot 기반으로 분류별 집계
-    const slotRows=calcStudentsPerSlot();
+    // 교습비 차트: calcStudentsPerSlot 기반으로 분류별 집계 (정규/특강 토글 반영)
+    const chartSrc=isSpecialStat?"special":"main";
+    const chartCats=isSpecialStat?CATS2:CATS;
+    const chartCC=isSpecialStat?CC2:CC;
+    const slotRows=calcStudentsPerSlot(chartSrc);
     const catFeeMap={};
     slotRows.forEach(r=>{
       if(!catFeeMap[r.cat])catFeeMap[r.cat]=0;
       catFeeMap[r.cat]+=r.free?0:r.fee;
     });
     const grandTotal=Object.values(catFeeMap).reduce((a,b)=>a+b,0);
-    const feeData=CATS.map(c=>({label:c.label,val:catFeeMap[c.key]||0,color:CC[c.key].t,bg:CC[c.key].bg})).filter(d=>d.val>0).sort((a,b)=>b.val-a.val);
+    const feeData=chartCats.map(c=>({label:c.label,val:catFeeMap[c.key]||0,color:chartCC[c.key].t,bg:chartCC[c.key].bg})).filter(d=>d.val>0).sort((a,b)=>b.val-a.val);
     chartInst.push(new Chart(feeCanvas,{type:"bar",data:{labels:feeData.map(d=>d.label),datasets:[{label:"교습비 합계",data:feeData.map(d=>d.val),backgroundColor:feeData.map(d=>d.bg),borderColor:feeData.map(d=>d.color),borderWidth:2,borderRadius:6}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,layout:{padding:{right:75}},plugins:{legend:{display:false},title:{display:true,text:"분류별 교습비 비중 (높은순)  |  합계: "+(grandTotal/10000).toFixed(0)+"만원",font:{size:13,weight:"bold"},color:"#555"}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v===0?"0":(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#e5e0d3"}},y:{grid:{display:false},ticks:{font:{size:11}}}}},plugins:[barLabelPlugin((v,t)=>(v/10000).toFixed(0)+"만 ("+(grandTotal>0?Math.round(v/grandTotal*100):0)+"%)")]}));
 
-    const catHours=calcCategoryHours();
-    const hourData=CATS.map(c=>({label:c.label,val:catHours[c.key]||0,color:CC[c.key].t,bg:CC[c.key].bg})).filter(d=>d.val>0)
+    const catHours=calcCategoryHours(chartSrc);
+    const hourData=chartCats.map(c=>({label:c.label,val:catHours[c.key]||0,color:chartCC[c.key].t,bg:chartCC[c.key].bg})).filter(d=>d.val>0)
       .sort((a,b)=>b.val-a.val);
     const totalHours=Object.values(catHours).reduce((a,b)=>a+b,0);
     chartInst.push(new Chart(hourCanvas,{type:"bar",data:{labels:hourData.map(d=>d.label),datasets:[{label:"주간 교습시간",data:hourData.map(d=>d.val),backgroundColor:hourData.map(d=>d.bg),borderColor:hourData.map(d=>d.color),borderWidth:2,borderRadius:6}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,layout:{padding:{right:75}},plugins:{legend:{display:false},title:{display:true,text:"분류별 주간 교습시간 (높은순)  |  합계: "+totalHours+"h",font:{size:13,weight:"bold"},color:"#555"}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v+"h",font:{size:10}},grid:{color:"#e5e0d3"}},y:{grid:{display:false},ticks:{font:{size:11}}}}},plugins:[barLabelPlugin((v,t)=>v+"h ("+(t>0?Math.round(v/t*100):0)+"%)")]}));
 
-    const daily=calcDailyRevenue();
-    const validVals=daily.map(d=>d.total).filter(v=>v!=null);
-    const minV=validVals.length?Math.min(...validVals):0;
-    const maxV=validVals.length?Math.max(...validVals):5000000;
-    const padding=(maxV-minV)||500000;
-    const yMin=Math.max(0,Math.floor((minV-padding*0.5)/100000)*100000);
-    const yMax=Math.ceil((maxV+padding*0.5)/100000)*100000;
-    // 포인트: 값이 바뀌는 시점(첫날)과 바뀌기 직전날(마지막날)만 표시
-    const snapIndices=new Set();
-    const dataVals=daily.map(d=>d.total);
-    for(let i=0;i<dataVals.length;i++){
-      if(dataVals[i]==null)continue;
-      const prev=dataVals[i-1];
-      const next=dataVals[i+1];
-      // 값이 시작되는 지점 (이전이 null이거나 값이 다를 때)
-      if(prev==null||prev!==dataVals[i])snapIndices.add(i);
-      // 값이 끝나는 지점 (다음이 null이거나 값이 다를 때)
-      if(next==null||next!==dataVals[i])snapIndices.add(i);
+    if(!isSpecialStat&&barCanvas){
+      const daily=calcDailyRevenue();
+      const validVals=daily.map(d=>d.total).filter(v=>v!=null);
+      const minV=validVals.length?Math.min(...validVals):0;
+      const maxV=validVals.length?Math.max(...validVals):5000000;
+      const padding=(maxV-minV)||500000;
+      const yMin=Math.max(0,Math.floor((minV-padding*0.5)/100000)*100000);
+      const yMax=Math.ceil((maxV+padding*0.5)/100000)*100000;
+      // 포인트: 값이 바뀌는 시점(첫날)과 바뀌기 직전날(마지막날)만 표시
+      const snapIndices=new Set();
+      const dataVals=daily.map(d=>d.total);
+      for(let i=0;i<dataVals.length;i++){
+        if(dataVals[i]==null)continue;
+        const prev=dataVals[i-1];
+        const next=dataVals[i+1];
+        // 값이 시작되는 지점 (이전이 null이거나 값이 다를 때)
+        if(prev==null||prev!==dataVals[i])snapIndices.add(i);
+        // 값이 끝나는 지점 (다음이 null이거나 값이 다를 때)
+        if(next==null||next!==dataVals[i])snapIndices.add(i);
+      }
+      chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.06)",borderWidth:2,pointBackgroundColor:"#b8872a",pointRadius:ctx=>snapIndices.has(ctx.dataIndex)?5:0,pointHoverRadius:7,tension:0,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:13,weight:"bold"},color:"#555"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#e5e0d3"}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:13}}}},plugins:[lastLabelPlugin]}));
     }
-    chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.06)",borderWidth:2,pointBackgroundColor:"#b8872a",pointRadius:ctx=>snapIndices.has(ctx.dataIndex)?5:0,pointHoverRadius:7,tension:0,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:13,weight:"bold"},color:"#555"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#e5e0d3"}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:13}}}},plugins:[lastLabelPlugin]}));
   },60);
   return wrap;
 }
@@ -1653,6 +1840,7 @@ function render(){
 
   const hdrStList=calcStudents();
   const hdrLevelCounts=LEVELS.map(lv=>({lv,cnt:hdrStList.filter(s=>getStudentLevel(s)===lv).length}));
+  const hdrSpecialCount=calcStudents("special").length;
   const TAB_TITLE={tt:"플라톤 이지 국어 시간표",att:"플라톤 이지 국어 출석표",chart:"플라톤 이지 국어 통계"};
 
   const hdr=h("header",{});
@@ -1666,6 +1854,7 @@ function render(){
   hdrLevelCounts.forEach(({lv,cnt})=>{
     pillsWrap.appendChild(D({className:"hdr-pill "+LEVEL_CLASS[lv],onClick:()=>openLevelModal(lv)},[Sp({},[lv]),Sp({className:"pv"},[cnt+"명"])]));
   });
+  pillsWrap.appendChild(D({className:"hdr-pill special",onClick:()=>openSpecialLevelModal()},[Sp({},["🏖 특강"]),Sp({className:"pv"},[hdrSpecialCount+"명"])]));
   leftGroup.appendChild(pillsWrap);
   hdr.appendChild(leftGroup);
   const hdrRight=D({className:"hdr-right",style:{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}});
