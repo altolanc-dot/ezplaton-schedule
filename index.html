@@ -1333,8 +1333,10 @@ function openFeeModal(){
 }
 
 // ── KPI 요약 카드 (대시보드 스타일) ─────────────────────────
-function renderKpiSummary(){
-  const stList=calcStudents();
+function renderKpiSummary(src="main"){
+  const cats=src==="special"?CATS2:CATS;
+  const cc2map=src==="special"?CC2:CC;
+  const stList=calcStudents(src);
   const totalStudents=stList.length;
   const totalRevenue=stList.reduce((a,s)=>a+(s.free?0:s.monthly),0);
   const wrap=D({style:{display:"flex",flexDirection:"column",gap:"10px"}});
@@ -1342,14 +1344,14 @@ function renderKpiSummary(){
   // Row A: 학생수 현황
   const rowA=D({className:"kpi-row"});
   const cardA=D({className:"kpi-card dark"});
-  cardA.appendChild(D({className:"kpi-lbl"},["총 재원생"]));
+  cardA.appendChild(D({className:"kpi-lbl"},[src==="special"?"특강 총 학생":"총 재원생"]));
   cardA.appendChild(D({className:"kpi-val"},[totalStudents+"명"]));
   const freeCnt=stList.filter(s=>s.free).length;
   cardA.appendChild(D({className:"kpi-sub"},[freeCnt>0?"무료 "+freeCnt+"명 포함":"전원 유료"]));
   rowA.appendChild(cardA);
-  const catCounts=CATS.map(c=>({...c,cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
+  const catCounts=cats.map(c=>({...c,cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
   catCounts.forEach(c=>{
-    const cc=CC[c.key];
+    const cc=cc2map[c.key];
     const pct=totalStudents>0?Math.round(c.cnt/totalStudents*100):0;
     const card=D({className:"kpi-card light"});
     card.appendChild(D({className:"kpi-lbl"},[c.label]));
@@ -1365,13 +1367,13 @@ function renderKpiSummary(){
   // Row B: 교습비 현황
   const rowB=D({className:"kpi-row"});
   const cardB=D({className:"kpi-card dark"});
-  cardB.appendChild(D({className:"kpi-lbl"},["이번달 예상 교습비"]));
+  cardB.appendChild(D({className:"kpi-lbl"},[src==="special"?"특강 예상 교습비":"이번달 예상 교습비"]));
   cardB.appendChild(D({className:"kpi-val"},[(totalRevenue/10000).toFixed(0)+"만원"]));
   cardB.appendChild(D({className:"kpi-sub"},[totalRevenue.toLocaleString()+"원"]));
   rowB.appendChild(cardB);
-  const catRevenue=CATS.map(c=>({...c,rev:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+(s.free?0:s.monthly),0)})).filter(c=>c.rev>0);
+  const catRevenue=cats.map(c=>({...c,rev:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+(s.free?0:s.monthly),0)})).filter(c=>c.rev>0);
   catRevenue.forEach(c=>{
-    const cc=CC[c.key];
+    const cc=cc2map[c.key];
     const pct=totalRevenue>0?Math.round(c.rev/totalRevenue*100):0;
     const card=D({className:"kpi-card light"});
     card.appendChild(D({className:"kpi-lbl"},[c.label]));
@@ -1488,20 +1490,12 @@ function buildSpecialFeeTable(){
   return tbl;
 }
 function renderCombinedStatCard(){
+  const isSpecial=(S.statView||"main")==="special";
   const card=D({className:"card"});
   const head=D({className:"card-head"});
-  const headLeft=D({style:{display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}});
-  headLeft.appendChild(Sp({className:"card-title"},["💰 교습비 현황"]));
-  const sw=D({className:"no-print",style:{display:"flex",gap:"4px",background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"3px"}});
-  [{v:"main",l:"정규"},{v:"special",l:"🏖 특강"}].forEach(o=>{
-    const sel=(S.statView||"main")===o.v;
-    sw.appendChild(Bt({style:{padding:"5px 12px",borderRadius:"7px",fontSize:"11px",fontWeight:sel?"800":"500",border:"none",background:sel?GOLD:"transparent",color:sel?"#fff":TS,cursor:"pointer"},
-      onClick:()=>{S.statView=o.v;render();}},[o.l]));
-  });
-  headLeft.appendChild(sw);
-  head.appendChild(headLeft);
+  head.appendChild(Sp({className:"card-title"},[isSpecial?"🏖 특강 교습비 현황":"💰 교습비 현황"]));
   card.appendChild(head);
-  card.appendChild((S.statView||"main")==="special"?buildSpecialFeeTable():buildMainFeeTable());
+  card.appendChild(isSpecial?buildSpecialFeeTable():buildMainFeeTable());
   return card;
 }
 
@@ -1703,23 +1697,29 @@ function renderAtt(){
 function renderChart(){
   chartInst.forEach(c=>{try{c.destroy();}catch(e){}});chartInst=[];
   const isSpecialStat=(S.statView||"main")==="special";
-  const stList=calcStudents();
-  const slotRows2=calcStudentsPerSlot();
-  const catFeeMap2={};
-  slotRows2.forEach(r=>{
-    if(!catFeeMap2[r.cat])catFeeMap2[r.cat]=0;
-    catFeeMap2[r.cat]+=r.free?0:r.fee;
-  });
-  const grand=Object.values(catFeeMap2).reduce((a,b)=>a+b,0);
+  const chartSrc0=isSpecialStat?"special":"main";
+  const stList=calcStudents(chartSrc0);
   const wrap=D({});
 
-  wrap.appendChild(renderKpiSummary());
+  // 전역 토글: 통계 탭 전체를 정규/특강으로 전환 (시간표 탭과 동일한 방식)
+  const switchRow=D({className:"card no-print",style:{padding:"10px 20px"}});
+  const sw=D({style:{display:"flex",gap:"4px",background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"3px",width:"fit-content"}});
+  [{v:"main",l:"📊 정규 통계"},{v:"special",l:"🏖 특강 통계"}].forEach(o=>{
+    const sel=(S.statView||"main")===o.v;
+    sw.appendChild(Bt({style:{padding:"6px 14px",borderRadius:"7px",fontSize:"12px",fontWeight:sel?"800":"500",border:"none",background:sel?GOLD:"transparent",color:sel?"#fff":TS,cursor:"pointer"},
+      onClick:()=>{S.statView=o.v;render();}},[o.l]));
+  });
+  switchRow.appendChild(sw);
+  wrap.appendChild(switchRow);
+
+  wrap.appendChild(renderKpiSummary(chartSrc0));
 
   const sumCard=D({className:"card"});
-  sumCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["👥 학생수 요약"])]));
+  sumCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},[isSpecialStat?"👥 특강 학생수 요약":"👥 학생수 요약"])]));
   const sg=D({className:"summary-grid",style:{gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))"}});
-  const SHORT_LABEL={초등_플라톤:"초등플라톤",초등_이지:"초등이지",중등_플라톤:"중등플라톤",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인"};
-  const sumCatTotals=CATS.map(c=>({key:c.key,total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
+  const sumCats=isSpecialStat?CATS2:CATS;
+  const SHORT_LABEL={초등_플라톤:"초등플라톤",초등_이지:"초등이지",중등_플라톤:"중등플라톤",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인",역사특강_34:"역사(3·4)",역사특강_56:"역사(5·6)",요점정리특강:"요점정리",어휘력특강:"어휘력"};
+  const sumCatTotals=sumCats.map(c=>({key:c.key,total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
   const sumItems=[{l:"총 학생수",cnt:stList.length}];
   sumCatTotals.forEach(c=>sumItems.push({l:SHORT_LABEL[c.key]||c.key,cnt:c.cnt}));
   sumItems.forEach(item=>{
@@ -1815,19 +1815,7 @@ function renderChart(){
       const padding=(maxV-minV)||500000;
       const yMin=Math.max(0,Math.floor((minV-padding*0.5)/100000)*100000);
       const yMax=Math.ceil((maxV+padding*0.5)/100000)*100000;
-      // 포인트: 값이 바뀌는 시점(첫날)과 바뀌기 직전날(마지막날)만 표시
-      const snapIndices=new Set();
-      const dataVals=daily.map(d=>d.total);
-      for(let i=0;i<dataVals.length;i++){
-        if(dataVals[i]==null)continue;
-        const prev=dataVals[i-1];
-        const next=dataVals[i+1];
-        // 값이 시작되는 지점 (이전이 null이거나 값이 다를 때)
-        if(prev==null||prev!==dataVals[i])snapIndices.add(i);
-        // 값이 끝나는 지점 (다음이 null이거나 값이 다를 때)
-        if(next==null||next!==dataVals[i])snapIndices.add(i);
-      }
-      chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.06)",borderWidth:2,pointBackgroundColor:"#b8872a",pointRadius:ctx=>snapIndices.has(ctx.dataIndex)?5:0,pointHoverRadius:7,tension:0,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:13,weight:"bold"},color:"#555"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#e5e0d3"}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:13}}}},plugins:[lastLabelPlugin]}));
+      chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.06)",borderWidth:2,pointBackgroundColor:"#b8872a",pointRadius:0,pointHoverRadius:5,tension:0,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:13,weight:"bold"},color:"#555"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:10}},grid:{color:"#e5e0d3"}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:13}}}},plugins:[lastLabelPlugin]}));
     }
   },60);
   return wrap;
