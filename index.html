@@ -289,6 +289,7 @@ let S={
   sch2:[],
   bf2:{...BFD2_INIT},
   meta2:{},
+  att2:{},
   tab:"tt",
   view:"main",
   attMonth:toYM(new Date()),
@@ -325,7 +326,7 @@ function localSave(){
 let autoSaveTimer=null,isApplyingRemote=false,firstSnapshotReceived=false;
 let lastSavedJSON=null; // 마지막으로 저장(전송)한 데이터의 스냅샷 - 불필요한 재저장/재렌더 루프 방지
 const MY_ID=Math.random().toString(36).slice(2)+Date.now();
-function packData(){return{sch:S.sch,bf:S.bf,meta:S.meta,att:S.att,memo:S.memo,sched:S.sched,revHistory:S.revHistory,sch2:S.sch2,bf2:S.bf2,meta2:S.meta2};}
+function packData(){return{sch:S.sch,bf:S.bf,meta:S.meta,att:S.att,memo:S.memo,sched:S.sched,revHistory:S.revHistory,sch2:S.sch2,bf2:S.bf2,meta2:S.meta2,att2:S.att2};}
 function applyData(d){
   if(d.sch&&d.sch.length)S.sch=d.sch;
   if(d.bf)S.bf={...BFD_INIT,...d.bf};
@@ -337,6 +338,7 @@ function applyData(d){
   if(d.sch2)S.sch2=d.sch2;
   if(d.bf2)S.bf2={...BFD2_INIT,...d.bf2};
   if(d.meta2)S.meta2=d.meta2;
+  if(d.att2)S.att2=d.att2;
 }
 // ── 일별 교습비 추이(히스토리 누적) ─────────────────────────
 function snapshotRevenue(){
@@ -542,8 +544,8 @@ function initLoad(){
 // ── 특강(별도 시간표) 데이터 스토어 접근 ─────────────────────
 // src="main": 기존 정규 시간표 / src="special": 특강 시간표 (완전히 별도 데이터)
 function getStore(src){
-  if(src==="special")return{sch:S.sch2,setSch:v=>{S.sch2=v;},meta:S.meta2,bf:S.bf2,cats:CATS2,cc:CC2};
-  return{sch:S.sch,setSch:v=>{S.sch=v;},meta:S.meta,bf:S.bf,cats:CATS,cc:CC};
+  if(src==="special")return{sch:S.sch2,setSch:v=>{S.sch2=v;},meta:S.meta2,bf:S.bf2,cats:CATS2,cc:CC2,att:S.att2};
+  return{sch:S.sch,setSch:v=>{S.sch=v;},meta:S.meta,bf:S.bf,cats:CATS,cc:CC,att:S.att};
 }
 function calcStudents(src="main"){
   const store=getStore(src);
@@ -714,17 +716,18 @@ function renderTodayCard(){
       const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:"10px",padding:"8px 12px"}});
       row.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
       row.appendChild(Sp({style:{fontSize:"11px",color:cc.t,fontWeight:"700",whiteSpace:"nowrap"}},[(slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||"")]));
+      const attStore=slot.isSpecial?S.att2:S.att;
       const chips=D({style:{display:"flex",gap:"6px",flexWrap:"wrap"}});
       slot.names.forEach(n=>{
-        const v=(S.att[n]||{})[dateKey];
+        const v=(attStore[n]||{})[dateKey];
         const chip=Bt({style:{borderRadius:"7px",padding:"4px 10px",fontSize:"12px",fontWeight:"700",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
           onClick:()=>{
-            if(!S.att[n])S.att[n]={};
-            const cur=S.att[n][dateKey];
-            if(!cur)S.att[n][dateKey]="O";
-            else if(cur==="O")S.att[n][dateKey]="X";
-            else if(cur==="X")S.att[n][dateKey]="D";
-            else delete S.att[n][dateKey];
+            if(!attStore[n])attStore[n]={};
+            const cur=attStore[n][dateKey];
+            if(!cur)attStore[n][dateKey]="O";
+            else if(cur==="O")attStore[n][dateKey]="X";
+            else if(cur==="X")attStore[n][dateKey]="D";
+            else delete attStore[n][dateKey];
             render();
           }},[n+(v?" "+(v==="O"?"✓":v==="X"?"✗":"↩"):"")]);
         chips.appendChild(chip);
@@ -1066,7 +1069,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
 
       // 수업현황 요약 + 이번달 출결 미니캘린더
       const curYM=toYM(new Date());
-      const attRec2=S.att[name]||{};
+      const attRec2=store.att[name]||{};
       const dCnt2=daysInMonth(curYM);
       const[yy2,mm2]=curYM.split("-").map(Number);
       let O2=0,X2=0,D2=0;
@@ -1083,12 +1086,12 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         cell.appendChild(D({style:{fontSize:"11px",fontWeight:"700",color:"#999",marginBottom:"2px"}},[String(d)]));
         cell.appendChild(D({style:{fontSize:"15px",fontWeight:"900",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}},[v||"·"]));
         cell.addEventListener("click",()=>{
-          if(!S.att[name])S.att[name]={};
-          const curV=S.att[name][dk];
-          if(!curV)S.att[name][dk]="O";
-          else if(curV==="O")S.att[name][dk]="X";
-          else if(curV==="X")S.att[name][dk]="D";
-          else delete S.att[name][dk];
+          if(!store.att[name])store.att[name]={};
+          const curV=store.att[name][dk];
+          if(!curV)store.att[name][dk]="O";
+          else if(curV==="O")store.att[name][dk]="X";
+          else if(curV==="X")store.att[name][dk]="D";
+          else delete store.att[name][dk];
           build();
         });
         miniCal.appendChild(cell);
@@ -1231,7 +1234,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         onClick:()=>{ms.attM=ymAdd(ms.attM,1);build();}},["▶"]));
       modal.appendChild(mnav);
 
-      const rec=S.att[name]||{};
+      const rec=store.att[name]||{};
       const days=daysInMonth(ms.attM);
       const[y,m]=ms.attM.split("-").map(Number);
       const dayNames=["일","월","화","수","목","금","토"];
@@ -1253,12 +1256,12 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         cell.appendChild(D({style:{fontSize:"10px",color:wd===0?"#d04040":wd===6?"#3a6ea8":"#777",fontWeight:"700",marginBottom:"2px"}},[String(d)]));
         cell.appendChild(D({style:{fontSize:"13px",fontWeight:"900",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}},[v||"·"]));
         cell.addEventListener("click",()=>{
-          if(!S.att[name])S.att[name]={};
-          const cur=S.att[name][dk];
-          if(!cur)S.att[name][dk]="O";
-          else if(cur==="O")S.att[name][dk]="X";
-          else if(cur==="X")S.att[name][dk]="D";
-          else delete S.att[name][dk];
+          if(!store.att[name])store.att[name]={};
+          const cur=store.att[name][dk];
+          if(!cur)store.att[name][dk]="O";
+          else if(cur==="O")store.att[name][dk]="X";
+          else if(cur==="X")store.att[name][dk]="D";
+          else delete store.att[name][dk];
           build();
         });
         weekRow.appendChild(cell);col++;
@@ -1350,17 +1353,12 @@ function openLevelModal(level){
 
 // ── 특강 학생 현황 모달 (초/중/고 모달과 동일한 구조, 특강 스토어 기준) ──
 function openSpecialLevelModal(){
-  const uniqueCount=calcStudents("special").length;
-  const perSlotRows=calcStudentsPerSlot("special");
-  const agg={};
-  perSlotRows.forEach(r=>{
-    const key=r.name+"|"+r.cat+"|"+(r.round||"1");
-    if(!agg[key])agg[key]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,round:r.round||"1",wc:0};
-    agg[key].wc++;
-  });
-  const stList=Object.values(agg);
+  const stList=calcSpecialEnrollments();
+  const enrollCount=stList.length;
+  const uniqueCount=new Set(stList.map(s=>s.name)).size;
   const ov=mkOv(()=>ov.remove());const modal=mkModal(480);
-  modal.appendChild(mkTitle("🏖","특강 학생 현황 ("+uniqueCount+"명)"));
+  modal.appendChild(mkTitle("🏖","특강 학생 현황 ("+enrollCount+"명)"));
+  if(enrollCount!==uniqueCount)modal.appendChild(D({style:{fontSize:"11px",color:TS,marginTop:"-10px",marginBottom:"10px"}},["※ 과목이 다르면 같은 학생도 각각 집계됩니다 (실인원 "+uniqueCount+"명)"]));
   if(!stList.length){
     modal.appendChild(D({style:{color:"#ccc",padding:"20px 0",textAlign:"center"}},["등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요."]));
   } else {
@@ -1651,7 +1649,7 @@ function buildScheduleCard(src){
             const effCat=ps.cat||slot.cat;
             const effCC=store.cc[effCat]||cc;
             const nl=Sp({className:"slot-name",title:store.cats.find(c=>c.key===effCat)?.label||"",style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
-            const todayAtt=(S.att[n]||{})[new Date().toISOString().split("T")[0]];
+            const todayAtt=(store.att[n]||{})[new Date().toISOString().split("T")[0]];
             if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":"↩"]));
             nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade,src);});
             nl.addEventListener("mouseenter",()=>{if(!isMatch)nl.style.background=effCC.bd;});
@@ -1773,7 +1771,7 @@ function renderAtt(){
     calcStudentsPerSlot("special").forEach(r=>{if(!(r.name in roundLookup))roundLookup[r.name]=r.round||"1";});
   }
   stList.forEach((st,ri)=>{
-    const cc=store.cc[st.cat];const rec=S.att[st.name]||{};
+    const cc=store.cc[st.cat];const rec=store.att[st.name]||{};
     const tr=h("tr",{style:{background:ri%2===0?"#fff":"#f5f3ee"}});
     const ntd=h("td",{style:{paddingLeft:"14px",fontWeight:"700",cursor:"pointer",color:cc.t}});
     ntd.addEventListener("click",()=>openStudentModal(st.name,st.cat,st.grade,src));
@@ -1790,9 +1788,9 @@ function renderAtt(){
       const td=h("td",{style:{textAlign:"center",background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":(isOff?"#f0ece0":""),padding:"4px 0",cursor:"pointer",fontSize:"12px",fontWeight:"800",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}});
       td.appendChild(document.createTextNode(v||"·"));
       td.addEventListener("click",()=>{
-        if(!S.att[st.name])S.att[st.name]={};
-        const cur=S.att[st.name][dk];
-        if(!cur)S.att[st.name][dk]="O";else if(cur==="O")S.att[st.name][dk]="X";else if(cur==="X")S.att[st.name][dk]="D";else delete S.att[st.name][dk];
+        if(!store.att[st.name])store.att[st.name]={};
+        const cur=store.att[st.name][dk];
+        if(!cur)store.att[st.name][dk]="O";else if(cur==="O")store.att[st.name][dk]="X";else if(cur==="X")store.att[st.name][dk]="D";else delete store.att[st.name][dk];
         render();
       });
       tr.appendChild(td);
@@ -1959,7 +1957,7 @@ function render(){
 
   const hdrStList=calcStudents();
   const hdrLevelCounts=LEVELS.map(lv=>({lv,cnt:hdrStList.filter(s=>getStudentLevel(s)===lv).length}));
-  const hdrSpecialCount=calcStudents("special").length;
+  const hdrSpecialCount=calcSpecialEnrollments().length;
   const TAB_TITLE={tt:"플라톤 이지 국어 시간표",att:"플라톤 이지 국어 출석표",chart:"플라톤 이지 국어 통계"};
 
   const hdr=h("header",{});
