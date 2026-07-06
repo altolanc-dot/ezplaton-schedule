@@ -605,6 +605,19 @@ function calcStudentsPerSlot(src="main"){
   });
   return rows;
 }
+// 특강 "등록" 단위 집계: 같은 학생이라도 분류(과목)가 다르면 별도 등록으로 카운트,
+// 같은 분류+회차 안에서 주 여러 회 반복되는 건 1건으로 합쳐서 반영 (패키지 총액 개념)
+function calcSpecialEnrollments(){
+  const rows=calcStudentsPerSlot("special");
+  const agg={};
+  rows.forEach(r=>{
+    const key=r.name+"|"+r.cat+"|"+(r.round||"1");
+    if(!agg[key])agg[key]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,round:r.round||"1",wc:0,monthly:0,feeSet:false};
+    agg[key].wc++;
+    if(!agg[key].feeSet){agg[key].monthly=r.free?0:r.fee;agg[key].feeSet=true;}
+  });
+  return Object.values(agg);
+}
 function buildCellMaps(src="main"){
   const store=getStore(src);
   const cmap={},smap={};
@@ -1425,7 +1438,7 @@ function openFeeModal(){
 function renderKpiSummary(src="main"){
   const cats=src==="special"?CATS2:CATS;
   const cc2map=src==="special"?CC2:CC;
-  const stList=calcStudents(src);
+  const stList=src==="special"?calcSpecialEnrollments():calcStudents(src);
   const totalStudents=stList.length;
   const totalRevenue=stList.reduce((a,s)=>a+(s.free?0:s.monthly),0);
   const wrap=D({style:{display:"flex",flexDirection:"column",gap:"10px"}});
@@ -1538,15 +1551,7 @@ function buildMainFeeTable(){
   return tbl;
 }
 function buildSpecialFeeTable(){
-  const rows=calcStudentsPerSlot("special");
-  const agg={};
-  rows.forEach(r=>{
-    const key=r.name+"|"+r.cat+"|"+(r.round||"1");
-    if(!agg[key]){agg[key]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,round:r.round||"1",wc:0,monthly:0,feeSet:false};}
-    agg[key].wc++;
-    if(!agg[key].feeSet){agg[key].monthly=r.free?0:r.fee;agg[key].feeSet=true;}
-  });
-  const list=Object.values(agg);
+  const list=calcSpecialEnrollments();
   const grand=list.reduce((a,s)=>a+s.monthly,0);
   if(!list.length)return D({style:{color:"#ccc",padding:"20px",textAlign:"center",fontSize:"12px"}},["등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요."]);
   const tbl=h("table",{className:"stat"});
@@ -1813,7 +1818,7 @@ function renderChart(){
   chartInst.forEach(c=>{try{c.destroy();}catch(e){}});chartInst=[];
   const isSpecialStat=(S.statView||"main")==="special";
   const chartSrc0=isSpecialStat?"special":"main";
-  const stList=calcStudents(chartSrc0);
+  const stList=isSpecialStat?calcSpecialEnrollments():calcStudents(chartSrc0);
   const wrap=D({});
 
   // 전역 토글: 통계 탭 전체를 정규/특강으로 전환 (시간표 탭과 동일한 방식)
