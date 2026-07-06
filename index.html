@@ -1718,7 +1718,7 @@ function renderTT(){
 function renderAtt(){
   const src=S.attView||"main";
   const store=getStore(src);
-  const stList=calcStudents(src);
+  const stList=src==="special"?calcSpecialEnrollments():calcStudents(src);
   if(src==="special")stList.sort((a,b)=>(a.round||"1").localeCompare(b.round||"1"));
   const wrap=D({});
   const attCard=D({className:"card"});
@@ -1766,17 +1766,13 @@ function renderAtt(){
   htr.appendChild(h("th",{style:{width:"110px"}},["출/결/보강"]));
   thead.appendChild(htr);tbl.appendChild(thead);
   const tbody=h("tbody",{});
-  const roundLookup={};
-  if(src==="special"){
-    calcStudentsPerSlot("special").forEach(r=>{if(!(r.name in roundLookup))roundLookup[r.name]=r.round||"1";});
-  }
   stList.forEach((st,ri)=>{
     const cc=store.cc[st.cat];const rec=store.att[st.name]||{};
     const tr=h("tr",{style:{background:ri%2===0?"#fff":"#f5f3ee"}});
     const ntd=h("td",{style:{paddingLeft:"14px",fontWeight:"700",cursor:"pointer",color:cc.t}});
     ntd.addEventListener("click",()=>openStudentModal(st.name,st.cat,st.grade,src));
     ntd.appendChild(Sp({style:{textDecoration:"underline dotted",textUnderlineOffset:"3px"}},[st.name]));
-    if(src==="special")ntd.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[roundLookup[st.name]||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"5px",fontWeight:"800"}},[ROUND_MAP[roundLookup[st.name]||"1"].short]));
+    if(src==="special")ntd.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[st.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"5px",fontWeight:"800"}},[ROUND_MAP[st.round||"1"].short]));
     tr.appendChild(ntd);
     tr.appendChild(h("td",{style:{textAlign:"center"}},[Sp({style:{background:cc.bg,color:cc.t,borderRadius:"5px",padding:"1px 6px",fontSize:"10px",fontWeight:"700"}},[store.cats.find(c=>c.key===st.cat)?.sub||""])]));
     let O=0,X=0,Dv=0;
