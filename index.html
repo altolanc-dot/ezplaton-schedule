@@ -892,6 +892,12 @@ function openCellModal(time,day,src="main"){
       cg.appendChild(Bt({className:"cat-btn",style:{borderColor:sel?cc.t:BORDER,background:sel?cc.bg:"#faf8f4",color:sel?cc.t:TS,fontWeight:sel?"800":"400"},
         onClick:()=>{
           ms.cat=c.key;
+          if(isSpecial&&c.key==="요점정리특강"&&ms.nt2.trim()){
+            const l1=ms.nt1.split("\n").map(x=>x.trim()).filter(Boolean);
+            const l2=ms.nt2.split("\n").map(x=>x.trim()).filter(Boolean);
+            const merged=[...new Set([...l1,...l2])];
+            ms.nt1=merged.join("\n");ms.nt2="";
+          }
           ms.stInfos=(isSpecial?syncSpecialSI(c.key,ms.stInfos):syncSI(ms.nt,c.key,ms.stInfos)).map(si=>({...si,fee:si.free?0:(store.bf[c.key]||0)}));
           rebuild();
         }},[c.label]));
@@ -909,7 +915,14 @@ function openCellModal(time,day,src="main"){
         onClick:()=>{ms.span=o.v;rebuild();}},[o.l]));
     });
     sd.appendChild(sr);r2.appendChild(sd);modal.appendChild(r2);
-    if(isSpecial){
+    if(isSpecial&&ms.cat==="요점정리특강"){
+      modal.appendChild(fLbl("👤 학생 명단 (1~4주 전체 진행)"));
+      const taAll=Ta({className:"field-input",rows:"3",placeholder:"김철수\n이영희",style:{marginBottom:"4px"}},[ms.nt1]);
+      taAll.addEventListener("input",e=>{ms.nt1=e.target.value;ms.stInfos=syncSpecialSI(ms.cat,ms.stInfos);rebuildFee();});
+      taAll.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.ctrlKey)confirm();if(e.key==="Escape")close();});
+      modal.appendChild(taAll);
+      modal.appendChild(D({style:{fontSize:"10px",color:"#ccc",marginBottom:"12px"}},["요점정리특강은 회차 구분 없이 1~4주 내내 진행됩니다 · Ctrl+Enter 저장"]));
+    } else if(isSpecial){
       const rg=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"4px"}});
       const box1=D({});
       box1.appendChild(fLbl("👤 1회차 학생 (1·2주)"));
@@ -946,7 +959,7 @@ function openCellModal(time,day,src="main"){
         const ne=Sp({style:{fontWeight:"700",fontSize:"13px",color:cc2.t,cursor:"pointer",textDecoration:"underline dotted"}},[si.name]);
         ne.addEventListener("click",e=>{e.stopPropagation();openStudentModal(si.name,siCat,ms.grade,src);});
         tr.appendChild(ne);
-        if(isSpecial)tr.appendChild(Sp({style:{fontSize:"10px",color:"#fff",background:ROUND_COLOR[si.round||"1"].t,borderRadius:"4px",padding:"1px 6px",fontWeight:"800",marginLeft:"4px"}},[ROUND_MAP[si.round||"1"].short]));
+        if(isSpecial&&siCat!=="요점정리특강")tr.appendChild(Sp({style:{fontSize:"10px",color:"#fff",background:ROUND_COLOR[si.round||"1"].t,borderRadius:"4px",padding:"1px 6px",fontWeight:"800",marginLeft:"4px"}},[ROUND_MAP[si.round||"1"].short]));
         if(si.free)tr.appendChild(Sp({style:{fontSize:"11px",color:"#e05a5a",fontWeight:"800",background:"#fff0f0",borderRadius:"5px",padding:"2px 7px"}},["무료"]));
         else tr.appendChild(Sp({className:"fee-lbl",style:{fontSize:"13px",fontWeight:"800",color:GOLD}},[si.fee.toLocaleString()+feeUnitText(src,siCat)]));
         card.appendChild(tr);
@@ -1385,7 +1398,7 @@ function openSpecialLevelModal(){
         lst.forEach(s=>{
           const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`},onClick:()=>{ov.remove();openStudentModal(s.name,s.cat,s.grade,"special");}});
           chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
-          chip.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[s.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"4px",fontWeight:"800"}},[ROUND_MAP[s.round||"1"].short]));
+          if(s.cat!=="요점정리특강")chip.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[s.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"4px",fontWeight:"800"}},[ROUND_MAP[s.round||"1"].short]));
           chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[(s.grade?s.grade+" · ":"")+(s.free?"무료":"주"+s.wc+"회")]));
           chips.appendChild(chip);
         });
@@ -1570,7 +1583,7 @@ function buildSpecialFeeTable(){
     lst.forEach(s=>{
       const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`},onClick:()=>openStudentModal(s.name,s.cat,s.grade,"special")});
       chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
-      chip.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[s.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"4px",fontWeight:"800"}},[ROUND_MAP[s.round||"1"].short]));
+      if(s.cat!=="요점정리특강")chip.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[s.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"4px",fontWeight:"800"}},[ROUND_MAP[s.round||"1"].short]));
       chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[(s.grade?s.grade+" · ":"")+(s.free?"무료":s.monthly.toLocaleString()+"원")]));
       chips.appendChild(chip);
     });
@@ -1639,8 +1652,8 @@ function buildScheduleCard(src){
           td.addEventListener("dragstart",e=>{dragId=slot.id;e.dataTransfer.effectAllowed="move";td.style.opacity="0.3";});
           td.addEventListener("dragend",()=>{dragId=null;td.style.opacity="1";});
           td.addEventListener("click",e=>{if(e.target.classList.contains("slot-name"))return;openCellModal(tk,d,src);});
-          const roundsInCell=isSpecial?[...new Set(slot.names.map(n=>(slot.perStudent&&slot.perStudent[n]&&slot.perStudent[n].round)||"1"))].sort():[];
-          const roundSummary=roundsInCell.length?" · "+roundsInCell.map(rk=>ROUND_MAP[rk].label).join("/"):"";
+          const roundsInCell=(isSpecial&&slot.cat!=="요점정리특강")?[...new Set(slot.names.map(n=>(slot.perStudent&&slot.perStudent[n]&&slot.perStudent[n].round)||"1"))].sort():[];
+          const roundSummary=isSpecial?(slot.cat==="요점정리특강"?" · 1~4주 진행":(roundsInCell.length?" · "+roundsInCell.map(rk=>ROUND_MAP[rk].label).join("/"):"")):"";
           const gl=D({className:"slot-grade",style:{color:cc.t}},[tk.replace(/[AP]M /,"")+" · "+slot.grade+" · "+(store.cats.find(c=>c.key===slot.cat)?.sub||"")+roundSummary]);
           gl.addEventListener("click",()=>openCellModal(tk,d,src));td.appendChild(gl);
           const buildNameChip=(n)=>{
@@ -1656,7 +1669,7 @@ function buildScheduleCard(src){
             nl.addEventListener("mouseleave",()=>{if(!isMatch)nl.style.background="transparent";});
             return nl;
           };
-          if(isSpecial){
+          if(isSpecial&&slot.cat!=="요점정리특강"){
             const presentRounds=ROUNDS.filter(r=>slot.names.some(n=>((slot.perStudent&&slot.perStudent[n]&&slot.perStudent[n].round)||"1")===r.key));
             presentRounds.forEach((r,ri)=>{
               const namesInRound=slot.names.filter(n=>((slot.perStudent&&slot.perStudent[n]&&slot.perStudent[n].round)||"1")===r.key);
@@ -1772,7 +1785,7 @@ function renderAtt(){
     const ntd=h("td",{style:{paddingLeft:"14px",fontWeight:"700",cursor:"pointer",color:cc.t}});
     ntd.addEventListener("click",()=>openStudentModal(st.name,st.cat,st.grade,src));
     ntd.appendChild(Sp({style:{textDecoration:"underline dotted",textUnderlineOffset:"3px"}},[st.name]));
-    if(src==="special")ntd.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[st.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"5px",fontWeight:"800"}},[ROUND_MAP[st.round||"1"].short]));
+    if(src==="special"&&st.cat!=="요점정리특강")ntd.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[st.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"5px",fontWeight:"800"}},[ROUND_MAP[st.round||"1"].short]));
     tr.appendChild(ntd);
     tr.appendChild(h("td",{style:{textAlign:"center"}},[Sp({style:{background:cc.bg,color:cc.t,borderRadius:"5px",padding:"1px 6px",fontSize:"10px",fontWeight:"700"}},[store.cats.find(c=>c.key===st.cat)?.sub||""])]));
     let O=0,X=0,Dv=0;
