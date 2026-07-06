@@ -164,8 +164,9 @@ const CATS2=[
   {key:"역사특강_56",label:"역사특강(5·6학년)",sub:"역사"},
   {key:"요점정리특강",label:"요점정리특강(5·6학년)",sub:"요점정리"},
   {key:"어휘력특강",  label:"어휘력특강(1·2학년)",sub:"어휘력"},
+  {key:"중등특강",    label:"중등특강",sub:"중등"},
 ];
-const BFD2_INIT={역사특강_34:0,역사특강_56:0,요점정리특강:0,어휘력특강:0};
+const BFD2_INIT={역사특강_34:0,역사특강_56:0,요점정리특강:0,어휘력특강:0,중등특강:0};
 const ROUNDS=[{key:"1",label:"1회차(1·2주)",short:"1회차"},{key:"2",label:"2회차(3·4주)",short:"2회차"}];
 const ROUND_MAP={};ROUNDS.forEach(r=>ROUND_MAP[r.key]=r);
 const ROUND_COLOR={"1":{t:"#2f6fed",bg:"#dce7fb"},"2":{t:"#c0501f",bg:"#fbe3d3"}};
@@ -174,6 +175,7 @@ const CC2={
   역사특강_56:{t:"#9a2a58",bg:"#f5ccd8",bd:"#df84a4",li:"#faeaf0"},
   요점정리특강:{t:"#c07020",bg:"#fce4c8",bd:"#f0b070",li:"#fff2e0"},
   어휘력특강:  {t:"#3a6ea8",bg:"#dce8f8",bd:"#9cc0ec",li:"#edf4fc"},
+  중등특강:    {t:"#3a9a5c",bg:"#dcf2e8",bd:"#90d4ac",li:"#ebfaf3"},
 };
 const LEVEL_MAP={초등_플라톤:"초등",초등_이지:"초등",중등_플라톤:"중등",중등_이지:"중등",중등_이지수능:"중등",고등_이지수능:"고등",고등_개인:"고등"};
 const LEVELS=["초등","중등","고등"];
@@ -1831,7 +1833,7 @@ function renderChart(){
   sumCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},[isSpecialStat?"👥 특강 학생수 요약":"👥 학생수 요약"])]));
   const sg=D({className:"summary-grid",style:{gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))"}});
   const sumCats=isSpecialStat?CATS2:CATS;
-  const SHORT_LABEL={초등_플라톤:"초등플라톤",초등_이지:"초등이지",중등_플라톤:"중등플라톤",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인",역사특강_34:"역사(3·4)",역사특강_56:"역사(5·6)",요점정리특강:"요점정리",어휘력특강:"어휘력"};
+  const SHORT_LABEL={초등_플라톤:"초등플라톤",초등_이지:"초등이지",중등_플라톤:"중등플라톤",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인",역사특강_34:"역사(3·4)",역사특강_56:"역사(5·6)",요점정리특강:"요점정리",어휘력특강:"어휘력",중등특강:"중등특강"};
   const sumCatTotals=sumCats.map(c=>({key:c.key,total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
   const sumItems=[{l:"총 학생수",cnt:stList.length}];
   sumCatTotals.forEach(c=>sumItems.push({l:SHORT_LABEL[c.key]||c.key,cnt:c.cnt}));
