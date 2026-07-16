@@ -341,6 +341,33 @@ function applyData(d){
   if(d.bf2)S.bf2={...BFD2_INIT,...d.bf2};
   if(d.meta2)S.meta2=d.meta2;
   if(d.att2)S.att2=d.att2;
+  syncIdCounters();
+  repairDuplicateIds();
+}
+// ── id 충돌 방지/복구 ─────────────────────────────────────
+// idC/idC2는 항상 203/0에서 시작하는데, 새로고침 후 다시 생성되는 새 id가
+// 이미 저장된 데이터의 id와 우연히 겹치면 드래그 등으로 서로 다른 두 수업이
+// 같은 id를 공유하게 되어 하나를 옮기면 다른 하나도 같이 바뀌는 문제가 있었다.
+// 데이터를 불러올 때마다 실제 최대 id 기준으로 카운터를 맞추고, 중복 id는 새 id로 교체한다.
+function syncIdCounters(){
+  let maxMain=203;
+  S.sch.forEach(s=>{const m=/^s(\d+)$/.exec(s.id||"");if(m)maxMain=Math.max(maxMain,parseInt(m[1],10));});
+  idC=maxMain;
+  let maxSpecial=0;
+  S.sch2.forEach(s=>{const m=/^t(\d+)$/.exec(s.id||"");if(m)maxSpecial=Math.max(maxSpecial,parseInt(m[1],10));});
+  idC2=maxSpecial;
+}
+function repairDuplicateIds(){
+  const seen=new Set();
+  S.sch=S.sch.map(s=>{
+    if(seen.has(s.id))return{...s,id:nid()};
+    seen.add(s.id);return s;
+  });
+  const seen2=new Set();
+  S.sch2=S.sch2.map(s=>{
+    if(seen2.has(s.id))return{...s,id:nid2()};
+    seen2.add(s.id);return s;
+  });
 }
 // ── 일별 교습비 추이(히스토리 누적) ─────────────────────────
 function snapshotRevenue(){
@@ -1698,9 +1725,14 @@ function buildScheduleCard(src){
             e.preventDefault();td.style.background="";td.style.border="";
             if(!dragId)return;
             const fs=store.sch.find(s=>s.id===dragId);if(!fs)return;
-            const{cmap:cm2}=buildCellMaps(src);
-            if(cm2[`${tk}_${d}`]&&cm2[`${tk}_${d}`].id!==dragId)return;
-            if(fs.span>1){const ti2=AK.indexOf(tk);for(let i=1;i<fs.span;i++){if(cm2[`${AK[ti2+i]}_${d}`]&&cm2[`${AK[ti2+i]}_${d}`].id!==dragId)return;}}
+            const{cmap:cm2,smap:sm2}=buildCellMaps(src);
+            const ti2=AK.indexOf(tk);
+            let blocked=false;
+            for(let i=0;i<fs.span;i++){
+              const key=`${AK[ti2+i]}_${d}`;
+              if((cm2[key]&&cm2[key].id!==dragId)||sm2[key]){blocked=true;break;}
+            }
+            if(blocked)return;
             store.setSch(store.sch.map(s=>s.id===dragId?{...s,time:tk,day:d}:s));
             dragId=null;render();
           });
