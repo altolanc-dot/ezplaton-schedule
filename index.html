@@ -150,6 +150,8 @@ const CATS=[
   {key:"고등_개인",  label:"고등 개인",  sub:"개인"},
 ];
 const BFD_INIT={초등_플라톤:75000,초등_이지:75000,중등_플라톤:140000,중등_이지:140000,중등_이지수능:160000,고등_이지수능:160000,고등_개인:350000};
+// 분류별 기본 수업 길이 (span: 1=30분,2=1시간,3=1.5시간,4=2시간)
+const DEFAULT_SPAN={초등_이지:"3",중등_플라톤:"3",중등_이지:"4",고등_개인:"4"};
 const CC={
   초등_플라톤:{t:"#3a6ea8",bg:"#dce8f8",bd:"#9cc0ec",li:"#edf4fc"},
   초등_이지:  {t:"#5a95cc",bg:"#e4f1ff",bd:"#a8d0f0",li:"#f0f8ff"},
@@ -835,7 +837,7 @@ function openCellModal(time,day,src="main"){
     nt:(!isSpecial&&slot)?(slot.names||[]).join("\n"):"",
     nt1:(isSpecial&&slot)?(slot.names||[]).filter(n=>((slot.perStudent&&slot.perStudent[n]&&slot.perStudent[n].round)||"1")==="1").join("\n"):"",
     nt2:(isSpecial&&slot)?(slot.names||[]).filter(n=>(slot.perStudent&&slot.perStudent[n]&&slot.perStudent[n].round)==="2").join("\n"):"",
-    span:String(slot?.span||2),stInfos:[]
+    span:String(slot?.span||DEFAULT_SPAN[slot?.cat||store.cats[0].key]||2),stInfos:[]
   };
   const buildOne=(n,cat,round)=>{
     const meta=store.meta[n]||{};const free=!!meta.free;
@@ -892,6 +894,7 @@ function openCellModal(time,day,src="main"){
       cg.appendChild(Bt({className:"cat-btn",style:{borderColor:sel?cc.t:BORDER,background:sel?cc.bg:"#faf8f4",color:sel?cc.t:TS,fontWeight:sel?"800":"400"},
         onClick:()=>{
           ms.cat=c.key;
+          if(!ms.sid&&DEFAULT_SPAN[c.key])ms.span=DEFAULT_SPAN[c.key];
           if(isSpecial&&c.key==="요점정리특강"&&ms.nt2.trim()){
             const l1=ms.nt1.split("\n").map(x=>x.trim()).filter(Boolean);
             const l2=ms.nt2.split("\n").map(x=>x.trim()).filter(Boolean);
@@ -1018,7 +1021,6 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
   function close(){ov.remove();}
   function saveMeta(){
     store.meta[ms.name]={...(store.meta[ms.name]||{}),cat:ms.cat,grade:ms.grade,free:ms.free,fee:ms.free?0:Number(ms.fv),regDate:ms.regDate};
-    store.setSch(store.sch.map(s=>{if((s.names||[]).includes(ms.name)&&s.names.length===1)return{...s,cat:ms.cat,grade:ms.grade};return s;}));
     if(src==="main")snapshotRevenue();
     close();render();
   }
