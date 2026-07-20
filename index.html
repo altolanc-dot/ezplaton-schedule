@@ -590,10 +590,12 @@ function calcStudents(src="main"){
   return Object.values(m).map(s=>{
     const meta=store.meta[s.name]||{};
     const free=!!meta.free;
+    const active=meta.active!==false;
+    const pending=!free&&!active;
     const grade=meta.grade||s.slots[0]?.slotGrade||"";
     // 슬롯별로 집계 (특강은 같은 분류가 주 여러 회 반복돼도 1회 금액만 반영 — 패키지 총액 개념)
     let monthly=0;
-    if(!free){
+    if(!free&&active){
       if(src==="special"){
         const seenCat={};
         s.slots.forEach(sl=>{
@@ -613,10 +615,10 @@ function calcStudents(src="main"){
     // 대표 분류: 가장 많이 등장하는 cat
     const catCount={};s.slots.forEach(sl=>{catCount[sl.cat]=(catCount[sl.cat]||0)+1;});
     const cat=Object.keys(catCount).sort((a,b)=>catCount[b]-catCount[a])[0]||store.cats[0].key;
-    const fee=free?0:(s.slots[0]?.fee!==undefined?s.slots[0].fee:(meta.fee!==undefined?Number(meta.fee):(store.bf[cat]||0)));
+    const fee=(free||!active)?0:(s.slots[0]?.fee!==undefined?s.slots[0].fee:(meta.fee!==undefined?Number(meta.fee):(store.bf[cat]||0)));
     // 대표 회차: 1회차가 있으면 1회차 우선 (정렬/표시용)
     const round=s.slots.some(sl=>(sl.round||"1")==="1")?"1":"2";
-    return{name:s.name,cat,grade,free,wc:s.slots.length,fee,monthly,round,memo:meta.memo||"",regDate:meta.regDate||""};
+    return{name:s.name,cat,grade,free,active,pending,wc:s.slots.length,fee,monthly,round,memo:meta.memo||"",regDate:meta.regDate||""};
   });
 }
 // ── 슬롯별 학생 분류/교습비 집계 (교습비 현황용) ─────────────
@@ -628,10 +630,12 @@ function calcStudentsPerSlot(src="main"){
       const ps=(slot.perStudent&&slot.perStudent[n])||{};
       const meta=store.meta[n]||{};
       const free=!!meta.free;
+      const active=meta.active!==false;
+      const pending=!free&&!active;
       const cat=ps.cat||slot.cat;
-      const fee=free?0:(ps.fee!==undefined?ps.fee:(meta.fee!==undefined?Number(meta.fee):(store.bf[cat]||0)));
+      const fee=(free||!active)?0:(ps.fee!==undefined?ps.fee:(meta.fee!==undefined?Number(meta.fee):(store.bf[cat]||0)));
       const grade=meta.grade||slot.grade;
-      rows.push({name:n,cat,grade,free,fee,slotId:slot.id,round:ps.round||"1"});
+      rows.push({name:n,cat,grade,free,active,pending,fee,slotId:slot.id,round:ps.round||"1"});
     });
   });
   return rows;
@@ -749,6 +753,8 @@ function renderTodayCard(){
       const chips=D({style:{display:"flex",gap:"6px",flexWrap:"wrap"}});
       slot.names.forEach(n=>{
         const v=(attStore[n]||{})[dateKey];
+        const nMeta2=(slot.isSpecial?S.meta2:S.meta)[n]||{};
+        const due=!slot.isSpecial&&isPaymentDue(attStore,S.meta,n,nMeta2.regDate||"");
         const chip=Bt({style:{borderRadius:"7px",padding:"4px 10px",fontSize:"12px",fontWeight:"700",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
           onClick:()=>{
             if(!attStore[n])attStore[n]={};
@@ -758,7 +764,7 @@ function renderTodayCard(){
             else if(cur==="X")attStore[n][dateKey]="D";
             else delete attStore[n][dateKey];
             render();
-          }},[n+(v?" "+(v==="O"?"✓":v==="X"?"✗":"↩"):"")]);
+          }},[(due?"💰 ":"")+n+(v?" "+(v==="O"?"✓":v==="X"?"✗":"↩"):"")]);
         chips.appendChild(chip);
       });
       row.appendChild(chips);
@@ -845,6 +851,18 @@ function mkDelConfirm(onYes,onNo){
 }
 
 // 특강 교습비 단위 표기 (설정값은 그대로, 안내 문구만 추가)
+// 등록일 이후 출석(O) 횟수를 세어 4회 단위 결제 시점인지 판정 (4,8,12...회차 완료 시 true)
+function countSessionsSinceReg(attStore,name,regDate){
+  const rec=attStore[name]||{};
+  return Object.entries(rec).filter(([d,v])=>(v==="O"||v==="D")&&(!regDate||d>=regDate)).length;
+}
+function isPaymentDue(attStore,metaObj,name,regDate){
+  const total=countSessionsSinceReg(attStore,name,regDate);
+  const paidUpTo=(metaObj[name]&&metaObj[name].paidUpTo)||0;
+  const unpaid=total-paidUpTo;
+  return unpaid>=4?unpaid:0;
+}
+
 function specialFeeUnitLabel(catKey){
   return catKey==="어휘력특강"?"1시간×4회":"2시간×4회";
 }
@@ -1036,6 +1054,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
     name,cat:st?.cat||fbCat||store.cats[0].key,
     grade:st?.grade||fbGrade||"",
     free:st?.free||false,
+    active:store.meta[name]?.active!==false,
     fv:String(st?.fee||(store.bf[st?.cat||fbCat]||0)),
     regDate:store.meta[name]?.regDate||"",
     activeTab:"info",
@@ -1047,7 +1066,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
   const ov=mkOv(close);const modal=mkModal(700);
   function close(){ov.remove();}
   function saveMeta(){
-    store.meta[ms.name]={...(store.meta[ms.name]||{}),cat:ms.cat,grade:ms.grade,free:ms.free,fee:ms.free?0:Number(ms.fv),regDate:ms.regDate};
+    store.meta[ms.name]={...(store.meta[ms.name]||{}),cat:ms.cat,grade:ms.grade,free:ms.free,active:ms.active,fee:ms.free?0:Number(ms.fv),regDate:ms.regDate};
     if(src==="main")snapshotRevenue();
     close();render();
   }
@@ -1068,6 +1087,18 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
       const wrap=D({style:{display:"flex",gap:"24px"}});
       const left=D({style:{flex:"1"}});
       left.appendChild(mkTitle("👤",ms.name));
+      const dueCount=isPaymentDue(store.att,store.meta,ms.name,store.meta[ms.name]?.regDate||"");
+      if(dueCount&&!ms.free){
+        const banner=D({style:{background:"#fff3d6",border:"1.5px solid #e8b448",borderRadius:"9px",padding:"9px 12px",marginBottom:"12px",fontSize:"12px",fontWeight:"800",color:"#8a6419",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px"}});
+        banner.appendChild(Sp({},["💰 결제일 도래 — "+dueCount+"회차 미납"]));
+        banner.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",whiteSpace:"nowrap"},
+          onClick:()=>{
+            const prevPaid=(store.meta[ms.name]&&store.meta[ms.name].paidUpTo)||0;
+            store.meta[ms.name]={...(store.meta[ms.name]||{}),paidUpTo:prevPaid+4};
+            build();
+          }},["✅ 4회분 입금완료"]));
+        left.appendChild(banner);
+      }
       left.appendChild(fLbl("분류"));
       const cg=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px",marginBottom:"12px"}});
       store.cats.forEach(c=>{const cc=store.cc[c.key],sel=ms.cat===c.key;
@@ -1088,6 +1119,14 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
           onClick:()=>{ms.free=v;build();}},[v?"무료":"유료"]));
       });
       left.appendChild(fr);
+      const activeRow=D({style:{display:"flex",alignItems:"center",gap:"7px",marginBottom:"12px",cursor:"pointer",background:ms.active?"#edfaf3":"#f7f1e2",border:`1.5px solid ${ms.active?"#a0d8b8":BORDER}`,borderRadius:"9px",padding:"8px 10px"}});
+      activeRow.addEventListener("click",()=>{ms.active=!ms.active;build();});
+      activeRow.appendChild(Sp({style:{fontSize:"15px"}},[ms.active?"☑️":"⬜"]));
+      const activeTextWrap=D({});
+      activeTextWrap.appendChild(D({style:{fontSize:"12px",fontWeight:"700",color:ms.active?"#2a8a50":TS}},[ms.active?"현재 교습 중":"예정 (교습비 미반영)"]));
+      activeTextWrap.appendChild(D({style:{fontSize:"10px",color:"#aaa"}},["체크 해제 시 시간표엔 계속 보이지만 교습비 집계·그래프에서 제외됩니다"]));
+      activeRow.appendChild(activeTextWrap);
+      left.appendChild(activeRow);
       if(!ms.free){
         left.appendChild(fLbl(src==="special"?"교습비 ("+specialFeeUnitLabel(ms.cat)+")":"회당 교습비"));
         const frow=D({style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"5px"}});
@@ -1539,7 +1578,7 @@ function buildMainFeeTable(){
   const catMap={};
   rows.forEach(r=>{
     if(!catMap[r.cat])catMap[r.cat]={students:{},total:0};
-    if(!catMap[r.cat].students[r.name])catMap[r.cat].students[r.name]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,monthly:0,wc:0};
+    if(!catMap[r.cat].students[r.name])catMap[r.cat].students[r.name]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,pending:r.pending,monthly:0,wc:0};
     catMap[r.cat].students[r.name].monthly+=r.free?0:r.fee;
     catMap[r.cat].students[r.name].wc++;
     catMap[r.cat].total+=r.free?0:r.fee;
@@ -1569,9 +1608,9 @@ function buildMainFeeTable(){
       tr.appendChild(h("td",{style:{whiteSpace:"nowrap"}},[Sp({style:{color:cc.t,fontWeight:"700",fontSize:"12px"}},[gr]),Sp({style:{color:TS,fontSize:"11px",marginLeft:"2px"}},["("+lst.length+"명)"])]));
       const chips=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:"5px"}});
       lst.forEach(s=>{
-        const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`,justifyContent:"flex-start"},onClick:()=>openStudentModal(s.name,s.cat,s.grade)});
+        const chip=D({className:"st-chip",style:{background:s.pending?"#f5f3ee":cc.li,border:`1.5px ${s.pending?"dashed":"solid"} ${s.pending?"#c9bd9f":cc.bd}`,justifyContent:"flex-start",opacity:s.pending?0.75:1},onClick:()=>openStudentModal(s.name,s.cat,s.grade)});
         chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
-        chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[s.free?"무료":s.monthly.toLocaleString()+"원"]));
+        chip.appendChild(Sp({style:{fontSize:"10px",color:s.pending?"#a3791f":TS,marginLeft:"2px",fontWeight:s.pending?"800":"400"}},[s.free?"무료":(s.pending?"예정":s.monthly.toLocaleString()+"원")]));
         chips.appendChild(chip);
       });
       tr.appendChild(h("td",{},[chips]));
@@ -1690,7 +1729,9 @@ function buildScheduleCard(src){
             const ps=(slot.perStudent&&slot.perStudent[n])||{};
             const effCat=ps.cat||slot.cat;
             const effCC=store.cc[effCat]||cc;
-            const nl=Sp({className:"slot-name",title:store.cats.find(c=>c.key===effCat)?.label||"",style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
+            const nMeta=store.meta[n]||{};
+            const nPending=!nMeta.free&&nMeta.active===false;
+            const nl=Sp({className:"slot-name",title:(store.cats.find(c=>c.key===effCat)?.label||"")+(nPending?" · 예정(교습비 미반영)":""),style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),fontStyle:nPending?"italic":"normal",opacity:nPending?0.55:1,borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
             const todayAtt=(store.att[n]||{})[new Date().toISOString().split("T")[0]];
             if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":"↩"]));
             nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade,src);});
@@ -1747,9 +1788,45 @@ function buildScheduleCard(src){
 }
 
 // ── 특강(별도 시간표) 교습비 현황 카드 (통계 탭, 정규 시간표와 완전 별도 집계) ──
+// ── 결제 필요 학생 모아보기 (한눈에 확인 + 바로 정산) ─────────
+function renderPaymentDueCard(){
+  const stList=calcStudents("main").filter(s=>!s.free);
+  const dueList=stList.map(s=>{
+    const due=isPaymentDue(S.att,S.meta,s.name,S.meta[s.name]?.regDate||"");
+    return due?{...s,due}:null;
+  }).filter(Boolean).sort((a,b)=>b.due-a.due);
+  const card=D({className:"card no-print"});
+  const head=D({className:"card-head"});
+  head.appendChild(Sp({className:"card-title"},["💰 결제 필요 학생"+(dueList.length?" ("+dueList.length+"명)":"")]));
+  card.appendChild(head);
+  const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"8px"}});
+  if(!dueList.length){
+    body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["결제 대상 학생이 없습니다."]));
+  } else {
+    dueList.forEach(s=>{
+      const row=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",background:"#fff3d6",border:"1.5px solid #e8b448",borderRadius:"9px",padding:"8px 12px",flexWrap:"wrap"}});
+      const leftEl=D({style:{display:"flex",alignItems:"center",gap:"8px"}});
+      leftEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:"#8a6419",cursor:"pointer",textDecoration:"underline dotted"},onClick:()=>openStudentModal(s.name,s.cat,s.grade,"main")},[s.name]));
+      leftEl.appendChild(Sp({style:{fontSize:"11px",color:"#a3791f"}},[s.due+"회차 미납"]));
+      row.appendChild(leftEl);
+      row.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"5px 12px",fontSize:"11px",fontWeight:"800",cursor:"pointer",whiteSpace:"nowrap"},
+        onClick:()=>{
+          const prevPaid=(S.meta[s.name]&&S.meta[s.name].paidUpTo)||0;
+          S.meta[s.name]={...(S.meta[s.name]||{}),paidUpTo:prevPaid+4};
+          render();
+        }},["✅ 4회분 완료"]));
+      body.appendChild(row);
+    });
+  }
+  card.appendChild(body);
+  return card;
+}
+
 function renderTT(){
   const wrap=D({});
   if(S.view==="main"){
+    const dueCount0=calcStudents("main").filter(s=>!s.free).filter(s=>isPaymentDue(S.att,S.meta,s.name,S.meta[s.name]?.regDate||"")).length;
+    if(dueCount0)wrap.appendChild(renderPaymentDueCard());
     const topGrid=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:"16px"}});
     topGrid.appendChild(renderTodayCard());
     topGrid.appendChild(renderScheduleCalendar());
@@ -1889,7 +1966,33 @@ function renderChart(){
     si.appendChild(D({className:"summary-sub"},[item.l]));
     sg.appendChild(si);
   });
-  sumCard.appendChild(sg);wrap.appendChild(sumCard);
+  sumCard.appendChild(sg);
+
+  if(isSpecialStat){
+    wrap.appendChild(sumCard);
+  } else {
+    const FEE_GROUPS=[
+      {label:"플라톤",keys:["초등_플라톤","중등_플라톤"]},
+      {label:"이지국어",keys:["초등_이지","중등_이지"]},
+      {label:"이지수능",keys:["중등_이지수능","고등_이지수능"]},
+      {label:"개인",keys:["고등_개인"]},
+    ];
+    const feeCard=D({className:"card"});
+    feeCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["💰 교습비 요약"])]));
+    const fg=D({className:"summary-grid",style:{gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))"}});
+    FEE_GROUPS.forEach(grp=>{
+      const total=stList.filter(s=>grp.keys.includes(s.cat)).reduce((a,s)=>a+s.monthly,0);
+      const fi=D({className:"summary-item"});
+      fi.appendChild(D({className:"summary-val",style:{fontSize:"17px"}},[total.toLocaleString()+"원"]));
+      fi.appendChild(D({className:"summary-sub"},[grp.label]));
+      fg.appendChild(fi);
+    });
+    feeCard.appendChild(fg);
+
+    const halfRow=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px",alignItems:"start"}});
+    halfRow.appendChild(sumCard);halfRow.appendChild(feeCard);
+    wrap.appendChild(halfRow);
+  }
   wrap.appendChild(renderCombinedStatCard());
 
   const chartCard=D({className:"card"});
