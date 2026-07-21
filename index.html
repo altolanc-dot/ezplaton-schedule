@@ -885,14 +885,21 @@ function countSessionsPerCategory(name,regDate){
   });
   return counts;
 }
-// 분류별로 4회 단위 결제 대상 목록 반환: [{cat,due}]
+// 분류별 결제 주기(threshold) = 주당 수업 횟수 × 4주(1개월). 주1회면 4회, 주2회면 8회 단위로 결제.
+function getPaymentThreshold(name,cat){
+  const catDays=getStudentCategoryDays(name);
+  const weekly=(catDays[cat]&&catDays[cat].size)||1;
+  return weekly*4;
+}
+// 분류별로 결제 주기(threshold) 단위 결제 대상 목록 반환: [{cat,due,threshold}]
 function paymentDueByCategory(name,regDate){
   const counts=countSessionsPerCategory(name,regDate);
   const paidMap=(S.meta[name]&&S.meta[name].paidUpToByCat)||{};
   const list=[];
   Object.entries(counts).forEach(([cat,total])=>{
+    const threshold=getPaymentThreshold(name,cat);
     const unpaid=total-(paidMap[cat]||0);
-    if(unpaid>=4)list.push({cat,due:unpaid});
+    if(unpaid>=threshold)list.push({cat,due:unpaid,threshold});
   });
   return list;
 }
@@ -1125,18 +1132,18 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
       const dueList=(src==="main"&&!ms.free)?paymentDueByCategory(ms.name,getPayBaseDate(ms.name)):[];
       if(dueList.length){
         const bannerWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px",marginBottom:"12px"}});
-        dueList.forEach(({cat,due})=>{
+        dueList.forEach(({cat,due,threshold})=>{
           const banner=D({style:{background:"#fff3d6",border:"1.5px solid #e8b448",borderRadius:"9px",padding:"9px 12px",fontSize:"12px",fontWeight:"800",color:"#8a6419",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",flexWrap:"wrap"}});
           banner.appendChild(Sp({},["💰 "+(CATS.find(c=>c.key===cat)?.label||cat)+" — "+due+"회차 미납"]));
           banner.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",whiteSpace:"nowrap"},
             onClick:()=>{
               const meta=store.meta[ms.name]||{};
               const paidMap={...(meta.paidUpToByCat||{})};
-              paidMap[cat]=(paidMap[cat]||0)+4;
-              const log=[...(meta.paymentLog||[]),{cat,ts:Date.now()}];
+              paidMap[cat]=(paidMap[cat]||0)+threshold;
+              const log=[...(meta.paymentLog||[]),{cat,ts:Date.now(),amount:threshold}];
               store.meta[ms.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
               build();
-            }},["✅ 4회분 입금완료"]));
+            }},["✅ "+threshold+"회분 입금완료"]));
           bannerWrap.appendChild(banner);
         });
         left.appendChild(bannerWrap);
@@ -1848,7 +1855,7 @@ function renderPaymentDueCard(){
   const rows=[];
   stList.forEach(s=>{
     const dueList=paymentDueByCategory(s.name,getPayBaseDate(s.name));
-    dueList.forEach(({cat,due})=>rows.push({name:s.name,grade:s.grade,cat,due}));
+    dueList.forEach(({cat,due,threshold})=>rows.push({name:s.name,grade:s.grade,cat,due,threshold}));
   });
   rows.sort((a,b)=>b.due-a.due);
   const card=D({className:"card no-print"});
@@ -1856,7 +1863,18 @@ function renderPaymentDueCard(){
   head.appendChild(Sp({className:"card-title"},["💰 결제 필요 학생"+(rows.length?" ("+rows.length+"건)":"")]));
   card.appendChild(head);
   const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"16px"}});
-  if(!rows.length){
+
+  // 학생별 결제 처리 로그를 분류별로 묶어두기 (섹션 안에서 함께 표기)
+  const logByCat={};
+  Object.entries(S.meta).forEach(([name,meta])=>{
+    (meta.paymentLog||[]).forEach(e=>{
+      if(!logByCat[e.cat])logByCat[e.cat]=[];
+      logByCat[e.cat].push({name,cat:e.cat,ts:e.ts,amount:e.amount});
+    });
+  });
+  Object.values(logByCat).forEach(arr=>arr.sort((a,b)=>b.ts-a.ts));
+
+  if(!rows.length&&!Object.keys(logByCat).length){
     body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["결제 대상 학생이 없습니다."]));
   } else {
     const byCat={};
@@ -1916,62 +1934,53 @@ function renderPaymentDueCard(){
         onClick:()=>{
           const meta=S.meta[r.name]||{};
           const paidMap={...(meta.paidUpToByCat||{})};
-          paidMap[r.cat]=(paidMap[r.cat]||0)+4;
-          const log=[...(meta.paymentLog||[]),{cat:r.cat,ts:Date.now()}];
+          paidMap[r.cat]=(paidMap[r.cat]||0)+r.threshold;
+          const log=[...(meta.paymentLog||[]),{cat:r.cat,ts:Date.now(),amount:r.threshold}];
           S.meta[r.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
           render();
-        }},["✅ 4회분 완료"]));
+        }},["✅ "+r.threshold+"회분 완료"]));
       return cardEl;
     };
-    CATS.filter(c=>byCat[c.key]).forEach(c=>{
-      const cc=CC[c.key];
-      const section=D({style:{marginBottom:"4px"}});
-      section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+" ("+byCat[c.key].length+"명)"]));
-      const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:"8px"}});
-      byCat[c.key].forEach(r=>grid.appendChild(buildDueCard(r)));
-      section.appendChild(grid);
-      body.appendChild(section);
-    });
-  }
-  card.appendChild(body);
-
-  // ── 최근 결제 처리 내역 (취소 가능, 잔여 미납 회차 함께 표시) ──
-  const logRows=[];
-  Object.entries(S.meta).forEach(([name,meta])=>{
-    (meta.paymentLog||[]).forEach((e,idx)=>logRows.push({name,cat:e.cat,ts:e.ts,idx}));
-  });
-  logRows.sort((a,b)=>b.ts-a.ts);
-  if(logRows.length){
-    const histHead=D({className:"card-head",style:{borderTop:`1px solid ${BORDER}`}});
-    histHead.appendChild(Sp({className:"card-title",style:{fontSize:"13px"}},["🧾 최근 결제 처리 내역"]));
-    card.appendChild(histHead);
-    const histBody=D({style:{padding:"10px 20px 16px",display:"flex",flexDirection:"column",gap:"6px"}});
-    logRows.slice(0,8).forEach(lr=>{
+    const buildHistChip=(lr)=>{
       const cc=CC[lr.cat];
-      const seq=Math.floor(((S.meta[lr.name].paymentLog||[]).filter(e=>e.cat===lr.cat).findIndex(e=>e.ts===lr.ts))+1);
       const remainCounts=countSessionsPerCategory(lr.name,getPayBaseDate(lr.name));
       const paidMap=S.meta[lr.name]?.paidUpToByCat||{};
       const remain=Math.max(0,(remainCounts[lr.cat]||0)-(paidMap[lr.cat]||0));
-      const hr=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",background:"#f5f3ee",borderRadius:"8px",padding:"6px 12px",flexWrap:"wrap"}});
-      const hl=D({style:{display:"flex",alignItems:"center",gap:"6px",fontSize:"11px",color:TS}});
-      hl.appendChild(Sp({style:{fontWeight:"700",color:TM}},[lr.name]));
-      hl.appendChild(Sp({style:{fontSize:"10px",color:cc?cc.t:TS,background:cc?cc.bg:"#fff",borderRadius:"5px",padding:"1px 6px",fontWeight:"700"}},[CATS.find(c=>c.key===lr.cat)?.label||lr.cat]));
-      hl.appendChild(Sp({},["✅ "+seq+"회차분 입금완료"]));
-      hl.appendChild(Sp({style:{fontWeight:"700",color:remain>0?"#c0501f":"#2a8a50"}},[remain>0?"· 잔여 "+remain+"회차 미납":"· 완납"]));
-      hr.appendChild(hl);
-      hr.appendChild(Bt({style:{background:"#fff",color:"#d04040",border:"1px solid #f0a8a8",borderRadius:"6px",padding:"3px 9px",fontSize:"10px",fontWeight:"700",cursor:"pointer"},
+      const chip=D({style:{display:"flex",alignItems:"center",gap:"6px",background:"#f5f3ee",borderRadius:"7px",padding:"5px 10px",fontSize:"11px",flexWrap:"wrap"}});
+      chip.appendChild(Sp({style:{fontWeight:"700",color:TM}},[lr.name]));
+      chip.appendChild(Sp({},["✅ "+(lr.amount||4)+"회분 입금완료"]));
+      chip.appendChild(Sp({style:{fontWeight:"700",color:remain>0?"#c0501f":"#2a8a50"}},[remain>0?"· 잔여 "+remain+"회차 미납":"· 완납"]));
+      chip.appendChild(Bt({style:{background:"#fff",color:"#d04040",border:"1px solid #f0a8a8",borderRadius:"5px",padding:"1px 7px",fontSize:"10px",fontWeight:"700",cursor:"pointer"},
         onClick:()=>{
           const meta=S.meta[lr.name]||{};
           const paidMap2={...(meta.paidUpToByCat||{})};
-          paidMap2[lr.cat]=Math.max(0,(paidMap2[lr.cat]||0)-4);
+          paidMap2[lr.cat]=Math.max(0,(paidMap2[lr.cat]||0)-(lr.amount||4));
           const log=(meta.paymentLog||[]).filter(e=>!(e.cat===lr.cat&&e.ts===lr.ts));
           S.meta[lr.name]={...meta,paidUpToByCat:paidMap2,paymentLog:log};
           render();
         }},["↩ 취소"]));
-      histBody.appendChild(hr);
+      return chip;
+    };
+    const allCatKeys=[...new Set([...Object.keys(byCat),...Object.keys(logByCat)])];
+    CATS.filter(c=>allCatKeys.includes(c.key)).forEach(c=>{
+      const cc=CC[c.key];
+      const section=D({style:{marginBottom:"4px"}});
+      const dueN=byCat[c.key]?byCat[c.key].length:0;
+      section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+(dueN?" ("+dueN+"명)":"")]));
+      if(byCat[c.key]){
+        const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"8px"}});
+        byCat[c.key].forEach(r=>grid.appendChild(buildDueCard(r)));
+        section.appendChild(grid);
+      }
+      if(logByCat[c.key]&&logByCat[c.key].length){
+        const histWrap=D({style:{display:"flex",flexDirection:"column",gap:"5px",marginTop:byCat[c.key]?"8px":"0"}});
+        logByCat[c.key].slice(0,5).forEach(lr=>histWrap.appendChild(buildHistChip(lr)));
+        section.appendChild(histWrap);
+      }
+      body.appendChild(section);
     });
-    card.appendChild(histBody);
   }
+  card.appendChild(body);
   return card;
 }
 
@@ -1998,7 +2007,8 @@ function renderAtt(){
   const wrap=D({});
   if(src==="main"){
     const dueCount0=calcStudents("main").filter(s=>!s.free).filter(s=>paymentDueByCategory(s.name,getPayBaseDate(s.name)).length>0).length;
-    if(dueCount0)wrap.appendChild(renderPaymentDueCard());
+    const hasPayLog=Object.values(S.meta).some(m=>m.paymentLog&&m.paymentLog.length);
+    if(dueCount0||hasPayLog)wrap.appendChild(renderPaymentDueCard());
   }
   const attCard=D({className:"card"});
   const cardHead=D({className:"card-head"});
