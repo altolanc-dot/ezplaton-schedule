@@ -1118,7 +1118,10 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
   const ov=mkOv(close);const modal=mkModal(700);
   function close(){ov.remove();}
   function saveMeta(){
+    const prevBase=store.meta[ms.name]?.payBaseDate||"";
+    const baseChanged=src==="main"&&prevBase!==ms.payBaseDate;
     store.meta[ms.name]={...(store.meta[ms.name]||{}),cat:ms.cat,grade:ms.grade,free:ms.free,active:ms.active,fee:ms.free?0:Number(ms.fv),regDate:ms.regDate,payBaseDate:ms.payBaseDate};
+    if(baseChanged)store.meta[ms.name]={...store.meta[ms.name],paidUpToByCat:{}};
     if(src==="main")snapshotRevenue();
     close();render();
   }
@@ -1143,20 +1146,76 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
       if(dueList.length){
         const bannerWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px",marginBottom:"12px"}});
         dueList.forEach(({cat,due,threshold})=>{
+          const isEditingDue=ms.editingDueCat===cat;
           const banner=D({style:{background:"#fff3d6",border:"1.5px solid #e8b448",borderRadius:"9px",padding:"9px 12px",fontSize:"12px",fontWeight:"800",color:"#8a6419",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",flexWrap:"wrap"}});
-          banner.appendChild(Sp({},["💰 "+(CATS.find(c=>c.key===cat)?.label||cat)+" — "+due+"회차 미납"]));
-          banner.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",whiteSpace:"nowrap"},
-            onClick:()=>{
-              const meta=store.meta[ms.name]||{};
-              const paidMap={...(meta.paidUpToByCat||{})};
-              paidMap[cat]=(paidMap[cat]||0)+threshold;
-              const log=[...(meta.paymentLog||[]),{cat,ts:Date.now(),amount:threshold}];
-              store.meta[ms.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
-              build();
-            }},["✅ "+threshold+"회분 입금완료"]));
+          if(isEditingDue){
+            const editWrap=D({style:{display:"flex",alignItems:"center",gap:"6px",flex:"1"}});
+            editWrap.appendChild(Sp({},[(CATS.find(c=>c.key===cat)?.label||cat)+" —"]));
+            const numInp=Inp({type:"number",value:String(due),style:{width:"56px",border:"1px solid #e8b448",borderRadius:"6px",padding:"3px 6px",fontSize:"12px",textAlign:"right"}});
+            editWrap.appendChild(numInp);
+            editWrap.appendChild(Sp({style:{fontWeight:"400"}},["회차"]));
+            banner.appendChild(editWrap);
+            const btnWrap=D({style:{display:"flex",gap:"5px"}});
+            btnWrap.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 9px",fontSize:"11px",fontWeight:"800",cursor:"pointer"},
+              onClick:()=>{
+                const total=countSessionsPerCategory(ms.name,getPayBaseDate(ms.name))[cat]||0;
+                const newDue=Math.max(0,Number(numInp.value)||0);
+                const meta=store.meta[ms.name]||{};
+                const paidMap={...(meta.paidUpToByCat||{})};
+                paidMap[cat]=Math.max(0,total-newDue);
+                store.meta[ms.name]={...meta,paidUpToByCat:paidMap};
+                ms.editingDueCat=null;build();
+              }},["저장"]));
+            btnWrap.appendChild(Bt({style:{background:"none",color:"#8a6419",border:"1px solid #e8b448",borderRadius:"6px",padding:"4px 9px",fontSize:"11px",fontWeight:"700",cursor:"pointer"},
+              onClick:()=>{ms.editingDueCat=null;build();}},["취소"]));
+            banner.appendChild(btnWrap);
+          } else {
+            const leftSp=D({style:{display:"flex",alignItems:"center",gap:"4px"}});
+            leftSp.appendChild(Sp({},["💰 "+(CATS.find(c=>c.key===cat)?.label||cat)+" — "+due+"회차 미납"]));
+            leftSp.appendChild(Bt({style:{background:"none",border:"none",color:"#8a6419",cursor:"pointer",fontSize:"11px",padding:"0 2px"},title:"미납 회차 직접 수정",
+              onClick:()=>{ms.editingDueCat=cat;build();}},["✏️"]));
+            banner.appendChild(leftSp);
+            banner.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",whiteSpace:"nowrap"},
+              onClick:()=>{
+                const meta=store.meta[ms.name]||{};
+                const paidMap={...(meta.paidUpToByCat||{})};
+                paidMap[cat]=(paidMap[cat]||0)+threshold;
+                const log=[...(meta.paymentLog||[]),{cat,ts:Date.now(),amount:threshold}];
+                store.meta[ms.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
+                build();
+              }},["✅ "+threshold+"회분 결제"]));
+          }
           bannerWrap.appendChild(banner);
         });
         left.appendChild(bannerWrap);
+      }
+      if(src==="main"){
+        const myLog=(store.meta[ms.name]?.paymentLog||[]).slice().sort((a,b)=>b.ts-a.ts);
+        if(myLog.length){
+          left.appendChild(fLbl("🧾 결제 내역"));
+          const histWrap=D({style:{display:"flex",flexDirection:"column",gap:"5px",marginBottom:"12px"}});
+          myLog.slice(0,5).forEach(lr=>{
+            const remainCounts=countSessionsPerCategory(ms.name,getPayBaseDate(ms.name));
+            const paidMap=store.meta[ms.name]?.paidUpToByCat||{};
+            const remain=Math.max(0,(remainCounts[lr.cat]||0)-(paidMap[lr.cat]||0));
+            const cc2=CC[lr.cat];
+            const chip=D({style:{display:"flex",alignItems:"center",gap:"6px",background:"#f5f3ee",borderRadius:"7px",padding:"5px 10px",fontSize:"11px",flexWrap:"wrap"}});
+            chip.appendChild(Sp({style:{fontSize:"10px",color:cc2?cc2.t:TS,background:cc2?cc2.bg:"#fff",borderRadius:"5px",padding:"1px 6px",fontWeight:"700"}},[CATS.find(c=>c.key===lr.cat)?.label||lr.cat]));
+            chip.appendChild(Sp({},["✅ "+(lr.amount||4)+"회분 결제"]));
+            chip.appendChild(Sp({style:{fontWeight:"700",color:remain>0?"#c0501f":"#2a8a50"}},[remain>0?"· 잔여 "+remain+"회차 미납":"· 완납"]));
+            chip.appendChild(Bt({style:{background:"#fff",color:"#d04040",border:"1px solid #f0a8a8",borderRadius:"5px",padding:"1px 7px",fontSize:"10px",fontWeight:"700",cursor:"pointer",marginLeft:"auto"},
+              onClick:()=>{
+                const meta=store.meta[ms.name]||{};
+                const paidMap2={...(meta.paidUpToByCat||{})};
+                paidMap2[lr.cat]=Math.max(0,(paidMap2[lr.cat]||0)-(lr.amount||4));
+                const log=(meta.paymentLog||[]).filter(e=>!(e.cat===lr.cat&&e.ts===lr.ts));
+                store.meta[ms.name]={...meta,paidUpToByCat:paidMap2,paymentLog:log};
+                build();
+              }},["↩ 취소"]));
+            histWrap.appendChild(chip);
+          });
+          left.appendChild(histWrap);
+        }
       }
       left.appendChild(fLbl("분류"));
       const cg=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px",marginBottom:"12px"}});
@@ -1873,126 +1932,33 @@ function renderPaymentDueCard(){
   const head=D({className:"card-head"});
   head.appendChild(Sp({className:"card-title"},["💰 결제 현황"+(dueTotal?" · 미납 "+dueTotal+"건":" · 미납 없음")]));
   card.appendChild(head);
-  const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"16px"}});
-
-  // 학생별 결제 처리 로그를 분류별로 묶어두기 (섹션 안에서 함께 표기)
-  const logByCat={};
-  Object.entries(S.meta).forEach(([name,meta])=>{
-    (meta.paymentLog||[]).forEach(e=>{
-      if(!logByCat[e.cat])logByCat[e.cat]=[];
-      logByCat[e.cat].push({name,cat:e.cat,ts:e.ts,amount:e.amount});
-    });
-  });
-  Object.values(logByCat).forEach(arr=>arr.sort((a,b)=>b.ts-a.ts));
-
+  const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"14px"}});
   if(!rows.length){
     body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["등록된 학생이 없습니다."]));
   } else {
     const byCat={};
     rows.forEach(r=>{if(!byCat[r.cat])byCat[r.cat]=[];byCat[r.cat].push(r);});
     const buildDueCard=(r)=>{
-      const isEditing=editingPayRow&&editingPayRow.name===r.name&&editingPayRow.cat===r.cat;
       const dueStyle=r.isDue?{bg:"#fff3d6",bd:"#e8b448",tx:"#8a6419"}:{bg:"#edfaf3",bd:"#a0d8b8",tx:"#2a8a50"};
-      const cardEl=D({style:{display:"flex",flexDirection:"column",gap:"6px",width:"190px",background:dueStyle.bg,border:`1.5px solid ${dueStyle.bd}`,borderRadius:"9px",padding:"9px 12px"}});
-      cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx,cursor:"pointer",textDecoration:"underline dotted"},onClick:()=>openStudentModal(r.name,r.cat,r.grade,"main")},[r.name]));
-      if(isEditing){
-        const editWrap=D({style:{display:"flex",alignItems:"center",gap:"6px"}});
-        const numInp=Inp({type:"number",value:String(r.due),style:{width:"56px",border:`1px solid ${dueStyle.bd}`,borderRadius:"6px",padding:"3px 6px",fontSize:"12px",textAlign:"right"}});
-        editWrap.appendChild(numInp);
-        editWrap.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx}},["회차"]));
-        cardEl.appendChild(editWrap);
-        const btnWrap=D({style:{display:"flex",gap:"5px"}});
-        btnWrap.appendChild(Bt({style:{background:dueStyle.tx,color:"#fff",border:"none",borderRadius:"6px",padding:"5px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",flex:"1"},
-          onClick:()=>{
-            const total=countSessionsPerCategory(r.name,getPayBaseDate(r.name))[r.cat]||0;
-            const newDue=Math.max(0,Number(numInp.value)||0);
-            const meta=S.meta[r.name]||{};
-            const paidMap={...(meta.paidUpToByCat||{})};
-            paidMap[r.cat]=Math.max(0,total-newDue);
-            S.meta[r.name]={...meta,paidUpToByCat:paidMap};
-            editingPayRow=null;render();
-          }},["저장"]));
-        btnWrap.appendChild(Bt({style:{background:"#f5f3ee",color:TS,border:`1px solid ${BORDER}`,borderRadius:"6px",padding:"5px 10px",fontSize:"11px",fontWeight:"700",cursor:"pointer",flex:"1"},
-          onClick:()=>{editingPayRow=null;render();}},["취소"]));
-        cardEl.appendChild(btnWrap);
-        return cardEl;
-      }
-      const line1=D({style:{display:"flex",alignItems:"center",gap:"5px"}});
-      line1.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"700":"400"}},[r.due>0?r.due+"회차 미납":"정상"]));
-      line1.appendChild(Bt({style:{background:"none",border:"none",color:dueStyle.tx,cursor:"pointer",fontSize:"11px",padding:"0 2px"},title:"미납 회차 직접 수정",
-        onClick:()=>{editingPayRow={name:r.name,cat:r.cat};editingBaseDateRow=null;render();}},["✏️"]));
-      cardEl.appendChild(line1);
-      const isEditingBase=editingBaseDateRow===r.name;
-      if(isEditingBase){
-        const line2=D({style:{display:"flex",alignItems:"center",gap:"4px",flexWrap:"wrap"}});
-        const dateInp=Inp({type:"date",value:getPayBaseDate(r.name),style:{fontSize:"10px",border:`1px solid ${dueStyle.bd}`,borderRadius:"5px",padding:"2px 4px",width:"110px"}});
-        line2.appendChild(dateInp);
-        line2.appendChild(Bt({style:{background:dueStyle.tx,color:"#fff",border:"none",borderRadius:"5px",padding:"2px 7px",fontSize:"10px",fontWeight:"800",cursor:"pointer"},
-          onClick:()=>{
-            const meta=S.meta[r.name]||{};
-            S.meta[r.name]={...meta,payBaseDate:dateInp.value};
-            editingBaseDateRow=null;render();
-          }},["저장"]));
-        line2.appendChild(Bt({style:{background:"none",color:TS,border:"none",fontSize:"10px",cursor:"pointer"},
-          onClick:()=>{editingBaseDateRow=null;render();}},["취소"]));
-        cardEl.appendChild(line2);
-      } else {
-        const line2=D({style:{cursor:"pointer"},
-          onClick:()=>{editingBaseDateRow=r.name;editingPayRow=null;render();}});
-        line2.appendChild(Sp({style:{fontSize:"10px",color:r.isDue?"#c9a45a":"#7ab890"}},["📅 "+(getPayBaseDate(r.name)||"기산일 미설정")]));
-        cardEl.appendChild(line2);
-      }
-      if(r.isDue){
-        cardEl.appendChild(Bt({style:{background:dueStyle.tx,color:"#fff",border:"none",borderRadius:"6px",padding:"6px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",width:"100%"},
-          onClick:()=>{
-            const meta=S.meta[r.name]||{};
-            const paidMap={...(meta.paidUpToByCat||{})};
-            paidMap[r.cat]=(paidMap[r.cat]||0)+r.threshold;
-            const log=[...(meta.paymentLog||[]),{cat:r.cat,ts:Date.now(),amount:r.threshold}];
-            S.meta[r.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
-            render();
-          }},["✅ "+r.threshold+"회분 완료"]));
-      }
+      const cardEl=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",background:dueStyle.bg,border:`1.5px solid ${dueStyle.bd}`,borderRadius:"9px",padding:"8px 12px",cursor:"pointer"},
+        title:"클릭해서 결제 처리 · 기산일 수정",
+        onClick:()=>openStudentModal(r.name,r.cat,r.grade,"main")});
+      cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[r.name]));
+      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.due+"회차 미납"]));
       return cardEl;
     };
-    const buildHistChip=(lr)=>{
-      const remainCounts=countSessionsPerCategory(lr.name,getPayBaseDate(lr.name));
-      const paidMap=S.meta[lr.name]?.paidUpToByCat||{};
-      const remain=Math.max(0,(remainCounts[lr.cat]||0)-(paidMap[lr.cat]||0));
-      const chip=D({style:{display:"flex",alignItems:"center",gap:"6px",background:"#f5f3ee",borderRadius:"7px",padding:"5px 10px",fontSize:"11px",flexWrap:"wrap"}});
-      chip.appendChild(Sp({style:{fontWeight:"700",color:TM}},[lr.name]));
-      chip.appendChild(Sp({},["✅ "+(lr.amount||4)+"회분 입금완료"]));
-      chip.appendChild(Sp({style:{fontWeight:"700",color:remain>0?"#c0501f":"#2a8a50"}},[remain>0?"· 잔여 "+remain+"회차 미납":"· 완납"]));
-      chip.appendChild(Bt({style:{background:"#fff",color:"#d04040",border:"1px solid #f0a8a8",borderRadius:"5px",padding:"1px 7px",fontSize:"10px",fontWeight:"700",cursor:"pointer"},
-        onClick:()=>{
-          const meta=S.meta[lr.name]||{};
-          const paidMap2={...(meta.paidUpToByCat||{})};
-          paidMap2[lr.cat]=Math.max(0,(paidMap2[lr.cat]||0)-(lr.amount||4));
-          const log=(meta.paymentLog||[]).filter(e=>!(e.cat===lr.cat&&e.ts===lr.ts));
-          S.meta[lr.name]={...meta,paidUpToByCat:paidMap2,paymentLog:log};
-          render();
-        }},["↩ 취소"]));
-      return chip;
-    };
-    const allCatKeys=[...new Set([...Object.keys(byCat),...Object.keys(logByCat)])];
-    CATS.filter(c=>allCatKeys.includes(c.key)).forEach(c=>{
+    CATS.filter(c=>byCat[c.key]).forEach(c=>{
       const cc=CC[c.key];
-      const catRows=byCat[c.key]||[];
+      const catRows=byCat[c.key];
       const catDueN=catRows.filter(r=>r.isDue).length;
       const section=D({style:{marginBottom:"4px"}});
       section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+" ("+catRows.length+"명"+(catDueN?" · 미납 "+catDueN+"명":"")+")"]));
-      if(catRows.length){
-        const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,190px)",gap:"8px"}});
-        catRows.forEach(r=>grid.appendChild(buildDueCard(r)));
-        section.appendChild(grid);
-      }
-      if(logByCat[c.key]&&logByCat[c.key].length){
-        const histWrap=D({style:{display:"flex",flexDirection:"column",gap:"5px",marginTop:catRows.length?"8px":"0"}});
-        logByCat[c.key].slice(0,5).forEach(lr=>histWrap.appendChild(buildHistChip(lr)));
-        section.appendChild(histWrap);
-      }
+      const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"6px"}});
+      catRows.forEach(r=>grid.appendChild(buildDueCard(r)));
+      section.appendChild(grid);
       body.appendChild(section);
     });
+    body.appendChild(D({style:{fontSize:"10px",color:"#ccc"}},["※ 학생 카드를 클릭하면 결제 처리·기산일 수정을 학생 정보 화면에서 할 수 있습니다."]));
   }
   card.appendChild(body);
   return card;
