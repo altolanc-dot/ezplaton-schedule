@@ -1953,7 +1953,7 @@ function renderPaymentDueCard(){
       const catDueN=catRows.filter(r=>r.isDue).length;
       const section=D({style:{marginBottom:"4px"}});
       section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+" ("+catRows.length+"명"+(catDueN?" · 미납 "+catDueN+"명":"")+")"]));
-      const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"6px"}});
+      const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,150px)",gap:"6px"}});
       catRows.forEach(r=>grid.appendChild(buildDueCard(r)));
       section.appendChild(grid);
       body.appendChild(section);
