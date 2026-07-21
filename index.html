@@ -886,6 +886,45 @@ function countSessionsPerCategory(name,regDate){
   return counts;
 }
 // 분류별 결제 주기(threshold) = 주당 수업 횟수 × 4주(1개월). 주1회면 4회, 주2회면 8회 단위로 결제.
+// ── 특강 결제 현황 (회차당 고정 4회 패키지 기준) ──────────────
+function getSpecialCategoryRoundDays(name){
+  const map={};
+  S.sch2.forEach(slot=>{
+    if(!(slot.names||[]).includes(name))return;
+    const ps=(slot.perStudent&&slot.perStudent[name])||{};
+    const cat=ps.cat||slot.cat;
+    const round=ps.round||"1";
+    const key=cat+"|"+round;
+    if(!map[key])map[key]=new Set();
+    map[key].add(slot.day);
+  });
+  return map;
+}
+function countSpecialSessionsPerKey(name){
+  const keyDays=getSpecialCategoryRoundDays(name);
+  const rec=S.att2[name]||{};
+  const counts={};
+  Object.keys(keyDays).forEach(k=>counts[k]=0);
+  Object.entries(rec).forEach(([d,v])=>{
+    if(!(v==="O"||v==="D"))return;
+    const dow=getDayOfWeekKR(d);
+    const matched=Object.keys(keyDays).find(k=>keyDays[k].has(dow));
+    if(matched)counts[matched]=(counts[matched]||0)+1;
+  });
+  return counts;
+}
+// 특강은 회차(1회차/2회차)당 고정 4회가 한 패키지: [{cat,round,key,due,isDue}]
+function specialPaymentStatus(name){
+  const counts=countSpecialSessionsPerKey(name);
+  const paidMap=(S.meta2[name]&&S.meta2[name].paidUpToByCat)||{};
+  return Object.entries(counts).map(([key,total])=>{
+    const idx=key.lastIndexOf("|");
+    const cat=key.slice(0,idx),round=key.slice(idx+1);
+    const due=Math.max(0,total-(paidMap[key]||0));
+    return{cat,round,key,due,isDue:due>=4};
+  });
+}
+
 function getPaymentThreshold(name,cat){
   const catDays=getStudentCategoryDays(name);
   const weekly=(catDays[cat]&&catDays[cat].size)||1;
@@ -1142,15 +1181,22 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
       const wrap=D({style:{display:"flex",gap:"24px"}});
       const left=D({style:{flex:"1"}});
       left.appendChild(mkTitle("👤",ms.name));
-      const dueList=(src==="main"&&!ms.free)?paymentDueByCategory(ms.name,getPayBaseDate(ms.name)):[];
+      let dueList=[];
+      if(!ms.free){
+        if(src==="main"){
+          dueList=paymentDueByCategory(ms.name,getPayBaseDate(ms.name)).map(d=>({...d,key:d.cat,label:CATS.find(c=>c.key===d.cat)?.label||d.cat}));
+        } else if(src==="special"){
+          dueList=specialPaymentStatus(ms.name).filter(d=>d.isDue).map(d=>({cat:d.cat,due:d.due,threshold:4,key:d.key,label:(CATS2.find(c=>c.key===d.cat)?.label||d.cat)+" · "+ROUND_MAP[d.round||"1"].short}));
+        }
+      }
       if(dueList.length){
         const bannerWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px",marginBottom:"12px"}});
-        dueList.forEach(({cat,due,threshold})=>{
-          const isEditingDue=ms.editingDueCat===cat;
+        dueList.forEach(({cat,due,threshold,key,label})=>{
+          const isEditingDue=ms.editingDueCat===key;
           const banner=D({style:{background:"#fff3d6",border:"1.5px solid #e8b448",borderRadius:"9px",padding:"9px 12px",fontSize:"12px",fontWeight:"800",color:"#8a6419",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",flexWrap:"wrap"}});
           if(isEditingDue){
             const editWrap=D({style:{display:"flex",alignItems:"center",gap:"6px",flex:"1"}});
-            editWrap.appendChild(Sp({},[(CATS.find(c=>c.key===cat)?.label||cat)+" —"]));
+            editWrap.appendChild(Sp({},[label+" —"]));
             const numInp=Inp({type:"number",value:String(due),style:{width:"56px",border:"1px solid #e8b448",borderRadius:"6px",padding:"3px 6px",fontSize:"12px",textAlign:"right"}});
             editWrap.appendChild(numInp);
             editWrap.appendChild(Sp({style:{fontWeight:"400"}},["회차"]));
@@ -1158,12 +1204,13 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
             const btnWrap=D({style:{display:"flex",gap:"5px"}});
             btnWrap.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 9px",fontSize:"11px",fontWeight:"800",cursor:"pointer"},
               onClick:()=>{
-                const total=countSessionsPerCategory(ms.name,getPayBaseDate(ms.name))[cat]||0;
+                const total=src==="main"?(countSessionsPerCategory(ms.name,getPayBaseDate(ms.name))[cat]||0):(countSpecialSessionsPerKey(ms.name)[key]||0);
                 const newDue=Math.max(0,Number(numInp.value)||0);
-                const meta=store.meta[ms.name]||{};
+                const metaStore=src==="main"?store.meta:S.meta2;
+                const meta=metaStore[ms.name]||{};
                 const paidMap={...(meta.paidUpToByCat||{})};
-                paidMap[cat]=Math.max(0,total-newDue);
-                store.meta[ms.name]={...meta,paidUpToByCat:paidMap};
+                paidMap[key]=Math.max(0,total-newDue);
+                metaStore[ms.name]={...meta,paidUpToByCat:paidMap};
                 ms.editingDueCat=null;build();
               }},["저장"]));
             btnWrap.appendChild(Bt({style:{background:"none",color:"#8a6419",border:"1px solid #e8b448",borderRadius:"6px",padding:"4px 9px",fontSize:"11px",fontWeight:"700",cursor:"pointer"},
@@ -1171,17 +1218,18 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
             banner.appendChild(btnWrap);
           } else {
             const leftSp=D({style:{display:"flex",alignItems:"center",gap:"4px"}});
-            leftSp.appendChild(Sp({},["💰 "+(CATS.find(c=>c.key===cat)?.label||cat)+" — "+due+"회차 미납"]));
+            leftSp.appendChild(Sp({},["💰 "+label+" — "+due+"회차 미납"]));
             leftSp.appendChild(Bt({style:{background:"none",border:"none",color:"#8a6419",cursor:"pointer",fontSize:"11px",padding:"0 2px"},title:"미납 회차 직접 수정",
-              onClick:()=>{ms.editingDueCat=cat;build();}},["✏️"]));
+              onClick:()=>{ms.editingDueCat=key;build();}},["✏️"]));
             banner.appendChild(leftSp);
             banner.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",whiteSpace:"nowrap"},
               onClick:()=>{
-                const meta=store.meta[ms.name]||{};
+                const metaStore=src==="main"?store.meta:S.meta2;
+                const meta=metaStore[ms.name]||{};
                 const paidMap={...(meta.paidUpToByCat||{})};
-                paidMap[cat]=(paidMap[cat]||0)+threshold;
-                const log=[...(meta.paymentLog||[]),{cat,ts:Date.now(),amount:threshold}];
-                store.meta[ms.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
+                paidMap[key]=(paidMap[key]||0)+threshold;
+                const log=[...(meta.paymentLog||[]),{cat:key,ts:Date.now(),amount:threshold}];
+                metaStore[ms.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
                 build();
               }},["✅ "+threshold+"회분 결제"]));
           }
@@ -1919,6 +1967,58 @@ function buildScheduleCard(src){
 // ── 결제 필요 학생 모아보기 (한눈에 확인 + 바로 정산) ─────────
 let editingPayRow=null; // {name,cat} 현재 미납회차를 직접 수정 중인 행
 let editingBaseDateRow=null; // name 현재 결제 기산일을 직접 수정 중인 학생
+// 특강용 결제 현황 카드 (회차당 고정 4회 패키지 기준, 정규와 동일한 UI 톤)
+function renderSpecialPaymentDueCard(){
+  const stList=calcSpecialEnrollments();
+  const uniqueNames=[...new Set(stList.map(s=>s.name))];
+  const rows=[];
+  uniqueNames.forEach(name=>{
+    specialPaymentStatus(name).forEach(r=>{
+      const entry=stList.find(s=>s.name===name&&s.cat===r.cat&&(s.round||"1")===r.round);
+      rows.push({name,cat:r.cat,round:r.round,due:r.due,isDue:r.isDue,grade:entry?entry.grade:""});
+    });
+  });
+  rows.sort((a,b)=>(b.isDue-a.isDue)||(b.due-a.due));
+  const dueTotal=rows.filter(r=>r.isDue).length;
+  const card=D({className:"card no-print"});
+  const head=D({className:"card-head"});
+  head.appendChild(Sp({className:"card-title"},["💰 특강 결제 현황"+(dueTotal?" · 미납 "+dueTotal+"건":" · 미납 없음")]));
+  card.appendChild(head);
+  const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"14px"}});
+  if(!rows.length){
+    body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["등록된 특강 학생이 없습니다."]));
+  } else {
+    const byCat={};
+    rows.forEach(r=>{if(!byCat[r.cat])byCat[r.cat]=[];byCat[r.cat].push(r);});
+    const buildCard=(r)=>{
+      const dueStyle=r.isDue?{bg:"#fff3d6",bd:"#e8b448",tx:"#8a6419"}:{bg:"#edfaf3",bd:"#a0d8b8",tx:"#2a8a50"};
+      const cardEl=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",background:dueStyle.bg,border:`1.5px solid ${dueStyle.bd}`,borderRadius:"9px",padding:"8px 12px",cursor:"pointer"},
+        title:"클릭해서 결제 처리",
+        onClick:()=>openStudentModal(r.name,r.cat,r.grade,"special")});
+      const leftWrap=D({style:{display:"flex",alignItems:"center",gap:"5px",overflow:"hidden"}});
+      leftWrap.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[r.name]));
+      leftWrap.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[r.round||"1"].t,borderRadius:"3px",padding:"1px 4px",fontWeight:"800"}},[ROUND_MAP[r.round||"1"].short]));
+      cardEl.appendChild(leftWrap);
+      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.due+"회차 미납"]));
+      return cardEl;
+    };
+    CATS2.filter(c=>byCat[c.key]).forEach(c=>{
+      const cc=CC2[c.key];
+      const catRows=byCat[c.key];
+      const catDueN=catRows.filter(r=>r.isDue).length;
+      const section=D({style:{marginBottom:"4px"}});
+      section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+" ("+catRows.length+"건"+(catDueN?" · 미납 "+catDueN+"건":"")+")"]));
+      const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,150px)",gap:"6px"}});
+      catRows.forEach(r=>grid.appendChild(buildCard(r)));
+      section.appendChild(grid);
+      body.appendChild(section);
+    });
+    body.appendChild(D({style:{fontSize:"10px",color:"#ccc"}},["※ 학생 카드를 클릭하면 결제 처리를 학생 정보 화면에서 할 수 있습니다."]));
+  }
+  card.appendChild(body);
+  return card;
+}
+
 function renderPaymentDueCard(){
   const stList=calcStudents("main").filter(s=>!s.free);
   const rows=[];
@@ -1988,6 +2088,8 @@ function renderAtt(){
   if(src==="main"){
     const hasPayingStudents=calcStudents("main").some(s=>!s.free);
     if(hasPayingStudents)wrap.appendChild(renderPaymentDueCard());
+  } else {
+    if(calcSpecialEnrollments().length)wrap.appendChild(renderSpecialPaymentDueCard());
   }
   const attCard=D({className:"card"});
   const cardHead=D({className:"card-head"});
