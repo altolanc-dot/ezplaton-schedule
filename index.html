@@ -903,6 +903,16 @@ function paymentDueByCategory(name,regDate){
   });
   return list;
 }
+// 전체 분류(미납 여부 상관없이) 결제 상태 반환: [{cat,due,threshold,isDue}]
+function allPaymentStatusByCategory(name,regDate){
+  const counts=countSessionsPerCategory(name,regDate);
+  const paidMap=(S.meta[name]&&S.meta[name].paidUpToByCat)||{};
+  return Object.entries(counts).map(([cat,total])=>{
+    const threshold=getPaymentThreshold(name,cat);
+    const due=Math.max(0,total-(paidMap[cat]||0));
+    return{cat,due,threshold,isDue:due>=threshold};
+  });
+}
 
 function specialFeeUnitLabel(catKey){
   return catKey==="어휘력특강"?"1시간×4회":"2시간×4회";
@@ -1854,13 +1864,14 @@ function renderPaymentDueCard(){
   const stList=calcStudents("main").filter(s=>!s.free);
   const rows=[];
   stList.forEach(s=>{
-    const dueList=paymentDueByCategory(s.name,getPayBaseDate(s.name));
-    dueList.forEach(({cat,due,threshold})=>rows.push({name:s.name,grade:s.grade,cat,due,threshold}));
+    const statusList=allPaymentStatusByCategory(s.name,getPayBaseDate(s.name));
+    statusList.forEach(({cat,due,threshold,isDue})=>rows.push({name:s.name,grade:s.grade,cat,due,threshold,isDue}));
   });
-  rows.sort((a,b)=>b.due-a.due);
+  rows.sort((a,b)=>(b.isDue-a.isDue)||(b.due-a.due));
+  const dueTotal=rows.filter(r=>r.isDue).length;
   const card=D({className:"card no-print"});
   const head=D({className:"card-head"});
-  head.appendChild(Sp({className:"card-title"},["💰 결제 필요 학생"+(rows.length?" ("+rows.length+"건)":"")]));
+  head.appendChild(Sp({className:"card-title"},["💰 결제 현황"+(dueTotal?" · 미납 "+dueTotal+"건":" · 미납 없음")]));
   card.appendChild(head);
   const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"16px"}});
 
@@ -1874,23 +1885,24 @@ function renderPaymentDueCard(){
   });
   Object.values(logByCat).forEach(arr=>arr.sort((a,b)=>b.ts-a.ts));
 
-  if(!rows.length&&!Object.keys(logByCat).length){
-    body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["결제 대상 학생이 없습니다."]));
+  if(!rows.length){
+    body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["등록된 학생이 없습니다."]));
   } else {
     const byCat={};
     rows.forEach(r=>{if(!byCat[r.cat])byCat[r.cat]=[];byCat[r.cat].push(r);});
     const buildDueCard=(r)=>{
       const isEditing=editingPayRow&&editingPayRow.name===r.name&&editingPayRow.cat===r.cat;
-      const cardEl=D({style:{display:"flex",flexDirection:"column",gap:"6px",background:"#fff3d6",border:"1.5px solid #e8b448",borderRadius:"9px",padding:"9px 12px"}});
-      cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:"#8a6419",cursor:"pointer",textDecoration:"underline dotted"},onClick:()=>openStudentModal(r.name,r.cat,r.grade,"main")},[r.name]));
+      const dueStyle=r.isDue?{bg:"#fff3d6",bd:"#e8b448",tx:"#8a6419"}:{bg:"#edfaf3",bd:"#a0d8b8",tx:"#2a8a50"};
+      const cardEl=D({style:{display:"flex",flexDirection:"column",gap:"6px",width:"190px",background:dueStyle.bg,border:`1.5px solid ${dueStyle.bd}`,borderRadius:"9px",padding:"9px 12px"}});
+      cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx,cursor:"pointer",textDecoration:"underline dotted"},onClick:()=>openStudentModal(r.name,r.cat,r.grade,"main")},[r.name]));
       if(isEditing){
         const editWrap=D({style:{display:"flex",alignItems:"center",gap:"6px"}});
-        const numInp=Inp({type:"number",value:String(r.due),style:{width:"56px",border:`1px solid #e8b448`,borderRadius:"6px",padding:"3px 6px",fontSize:"12px",textAlign:"right"}});
+        const numInp=Inp({type:"number",value:String(r.due),style:{width:"56px",border:`1px solid ${dueStyle.bd}`,borderRadius:"6px",padding:"3px 6px",fontSize:"12px",textAlign:"right"}});
         editWrap.appendChild(numInp);
-        editWrap.appendChild(Sp({style:{fontSize:"11px",color:"#a3791f"}},["회차"]));
+        editWrap.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx}},["회차"]));
         cardEl.appendChild(editWrap);
         const btnWrap=D({style:{display:"flex",gap:"5px"}});
-        btnWrap.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"5px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",flex:"1"},
+        btnWrap.appendChild(Bt({style:{background:dueStyle.tx,color:"#fff",border:"none",borderRadius:"6px",padding:"5px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",flex:"1"},
           onClick:()=>{
             const total=countSessionsPerCategory(r.name,getPayBaseDate(r.name))[r.cat]||0;
             const newDue=Math.max(0,Number(numInp.value)||0);
@@ -1906,16 +1918,16 @@ function renderPaymentDueCard(){
         return cardEl;
       }
       const line1=D({style:{display:"flex",alignItems:"center",gap:"5px"}});
-      line1.appendChild(Sp({style:{fontSize:"11px",color:"#a3791f"}},[r.due+"회차 미납"]));
-      line1.appendChild(Bt({style:{background:"none",border:"none",color:"#a3791f",cursor:"pointer",fontSize:"11px",padding:"0 2px"},title:"미납 회차 직접 수정",
+      line1.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"700":"400"}},[r.due>0?r.due+"회차 미납":"정상"]));
+      line1.appendChild(Bt({style:{background:"none",border:"none",color:dueStyle.tx,cursor:"pointer",fontSize:"11px",padding:"0 2px"},title:"미납 회차 직접 수정",
         onClick:()=>{editingPayRow={name:r.name,cat:r.cat};editingBaseDateRow=null;render();}},["✏️"]));
       cardEl.appendChild(line1);
       const isEditingBase=editingBaseDateRow===r.name;
       if(isEditingBase){
         const line2=D({style:{display:"flex",alignItems:"center",gap:"4px",flexWrap:"wrap"}});
-        const dateInp=Inp({type:"date",value:getPayBaseDate(r.name),style:{fontSize:"10px",border:`1px solid #e8b448`,borderRadius:"5px",padding:"2px 4px",width:"120px"}});
+        const dateInp=Inp({type:"date",value:getPayBaseDate(r.name),style:{fontSize:"10px",border:`1px solid ${dueStyle.bd}`,borderRadius:"5px",padding:"2px 4px",width:"110px"}});
         line2.appendChild(dateInp);
-        line2.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"5px",padding:"2px 7px",fontSize:"10px",fontWeight:"800",cursor:"pointer"},
+        line2.appendChild(Bt({style:{background:dueStyle.tx,color:"#fff",border:"none",borderRadius:"5px",padding:"2px 7px",fontSize:"10px",fontWeight:"800",cursor:"pointer"},
           onClick:()=>{
             const meta=S.meta[r.name]||{};
             S.meta[r.name]={...meta,payBaseDate:dateInp.value};
@@ -1927,22 +1939,23 @@ function renderPaymentDueCard(){
       } else {
         const line2=D({style:{cursor:"pointer"},
           onClick:()=>{editingBaseDateRow=r.name;editingPayRow=null;render();}});
-        line2.appendChild(Sp({style:{fontSize:"10px",color:"#c9a45a"}},["📅 "+(getPayBaseDate(r.name)||"기산일 미설정")]));
+        line2.appendChild(Sp({style:{fontSize:"10px",color:r.isDue?"#c9a45a":"#7ab890"}},["📅 "+(getPayBaseDate(r.name)||"기산일 미설정")]));
         cardEl.appendChild(line2);
       }
-      cardEl.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"6px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",width:"100%"},
-        onClick:()=>{
-          const meta=S.meta[r.name]||{};
-          const paidMap={...(meta.paidUpToByCat||{})};
-          paidMap[r.cat]=(paidMap[r.cat]||0)+r.threshold;
-          const log=[...(meta.paymentLog||[]),{cat:r.cat,ts:Date.now(),amount:r.threshold}];
-          S.meta[r.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
-          render();
-        }},["✅ "+r.threshold+"회분 완료"]));
+      if(r.isDue){
+        cardEl.appendChild(Bt({style:{background:dueStyle.tx,color:"#fff",border:"none",borderRadius:"6px",padding:"6px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",width:"100%"},
+          onClick:()=>{
+            const meta=S.meta[r.name]||{};
+            const paidMap={...(meta.paidUpToByCat||{})};
+            paidMap[r.cat]=(paidMap[r.cat]||0)+r.threshold;
+            const log=[...(meta.paymentLog||[]),{cat:r.cat,ts:Date.now(),amount:r.threshold}];
+            S.meta[r.name]={...meta,paidUpToByCat:paidMap,paymentLog:log};
+            render();
+          }},["✅ "+r.threshold+"회분 완료"]));
+      }
       return cardEl;
     };
     const buildHistChip=(lr)=>{
-      const cc=CC[lr.cat];
       const remainCounts=countSessionsPerCategory(lr.name,getPayBaseDate(lr.name));
       const paidMap=S.meta[lr.name]?.paidUpToByCat||{};
       const remain=Math.max(0,(remainCounts[lr.cat]||0)-(paidMap[lr.cat]||0));
@@ -1964,16 +1977,17 @@ function renderPaymentDueCard(){
     const allCatKeys=[...new Set([...Object.keys(byCat),...Object.keys(logByCat)])];
     CATS.filter(c=>allCatKeys.includes(c.key)).forEach(c=>{
       const cc=CC[c.key];
+      const catRows=byCat[c.key]||[];
+      const catDueN=catRows.filter(r=>r.isDue).length;
       const section=D({style:{marginBottom:"4px"}});
-      const dueN=byCat[c.key]?byCat[c.key].length:0;
-      section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+(dueN?" ("+dueN+"명)":"")]));
-      if(byCat[c.key]){
-        const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"8px"}});
-        byCat[c.key].forEach(r=>grid.appendChild(buildDueCard(r)));
+      section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+" ("+catRows.length+"명"+(catDueN?" · 미납 "+catDueN+"명":"")+")"]));
+      if(catRows.length){
+        const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,190px)",gap:"8px"}});
+        catRows.forEach(r=>grid.appendChild(buildDueCard(r)));
         section.appendChild(grid);
       }
       if(logByCat[c.key]&&logByCat[c.key].length){
-        const histWrap=D({style:{display:"flex",flexDirection:"column",gap:"5px",marginTop:byCat[c.key]?"8px":"0"}});
+        const histWrap=D({style:{display:"flex",flexDirection:"column",gap:"5px",marginTop:catRows.length?"8px":"0"}});
         logByCat[c.key].slice(0,5).forEach(lr=>histWrap.appendChild(buildHistChip(lr)));
         section.appendChild(histWrap);
       }
@@ -2006,9 +2020,8 @@ function renderAtt(){
   if(src==="special")stList.sort((a,b)=>(a.round||"1").localeCompare(b.round||"1"));
   const wrap=D({});
   if(src==="main"){
-    const dueCount0=calcStudents("main").filter(s=>!s.free).filter(s=>paymentDueByCategory(s.name,getPayBaseDate(s.name)).length>0).length;
-    const hasPayLog=Object.values(S.meta).some(m=>m.paymentLog&&m.paymentLog.length);
-    if(dueCount0||hasPayLog)wrap.appendChild(renderPaymentDueCard());
+    const hasPayingStudents=calcStudents("main").some(s=>!s.free);
+    if(hasPayingStudents)wrap.appendChild(renderPaymentDueCard());
   }
   const attCard=D({className:"card"});
   const cardHead=D({className:"card-head"});
