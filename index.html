@@ -572,6 +572,10 @@ function initLoad(){
 // ── 파생 계산 ─────────────────────────────────────────────
 // ── 특강(별도 시간표) 데이터 스토어 접근 ─────────────────────
 // src="main": 기존 정규 시간표 / src="special": 특강 시간표 (완전히 별도 데이터)
+// 출결 저장 키: 정규는 이름만, 특강은 이름+분류 조합 (같은 학생이 여러 특강 과목을 들을 때 출결이 서로 섞이지 않도록)
+function attKey(src,name,cat){
+  return src==="special"&&cat?name+"◆"+cat:name;
+}
 function getStore(src){
   if(src==="special")return{sch:S.sch2,setSch:v=>{S.sch2=v;},meta:S.meta2,bf:S.bf2,cats:CATS2,cc:CC2,att:S.att2};
   return{sch:S.sch,setSch:v=>{S.sch=v;},meta:S.meta,bf:S.bf,cats:CATS,cc:CC,att:S.att};
@@ -752,15 +756,18 @@ function renderTodayCard(){
       const attStore=slot.isSpecial?S.att2:S.att;
       const chips=D({style:{display:"flex",gap:"6px",flexWrap:"wrap"}});
       slot.names.forEach(n=>{
-        const v=(attStore[n]||{})[dateKey];
+        const ps0=(slot.perStudent&&slot.perStudent[n])||{};
+        const effCat0=ps0.cat||slot.cat;
+        const ak=attKey(slot.isSpecial?"special":"main",n,effCat0);
+        const v=(attStore[ak]||{})[dateKey];
         const chip=Bt({style:{borderRadius:"7px",padding:"4px 10px",fontSize:"12px",fontWeight:"700",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
           onClick:()=>{
-            if(!attStore[n])attStore[n]={};
-            const cur=attStore[n][dateKey];
-            if(!cur)attStore[n][dateKey]="O";
-            else if(cur==="O")attStore[n][dateKey]="X";
-            else if(cur==="X")attStore[n][dateKey]="D";
-            else delete attStore[n][dateKey];
+            if(!attStore[ak])attStore[ak]={};
+            const cur=attStore[ak][dateKey];
+            if(!cur)attStore[ak][dateKey]="O";
+            else if(cur==="O")attStore[ak][dateKey]="X";
+            else if(cur==="X")attStore[ak][dateKey]="D";
+            else delete attStore[ak][dateKey];
             render();
           }},[n+(v?" "+(v==="O"?"✓":v==="X"?"✗":"↩"):"")]);
         chips.appendChild(chip);
@@ -887,29 +894,34 @@ function countSessionsPerCategory(name,regDate){
 }
 // 분류별 결제 주기(threshold) = 주당 수업 횟수 × 4주(1개월). 주1회면 4회, 주2회면 8회 단위로 결제.
 // ── 특강 결제 현황 (회차당 고정 4회 패키지 기준) ──────────────
-function getSpecialCategoryRoundDays(name){
-  const map={};
+function getSpecialStudentCats(name){
+  const set=new Set();
   S.sch2.forEach(slot=>{
     if(!(slot.names||[]).includes(name))return;
     const ps=(slot.perStudent&&slot.perStudent[name])||{};
-    const cat=ps.cat||slot.cat;
-    const round=ps.round||"1";
-    const key=cat+"|"+round;
-    if(!map[key])map[key]=new Set();
-    map[key].add(slot.day);
+    set.add(ps.cat||slot.cat);
   });
-  return map;
+  return[...set];
+}
+// 날짜 하나가 1회차(7/22~8/4)·2회차(8/5~8/19) 중 어디에 속하는지 판정 (기간 밖이면 null)
+function getRoundForDate(dateStr){
+  const d=new Date(dateStr+"T00:00:00");
+  const y=d.getFullYear();
+  const start=new Date(y,6,22),mid=new Date(y,7,4),end=new Date(y,7,19);
+  if(d<start||d>end)return null;
+  return d<=mid?"1":"2";
 }
 function countSpecialSessionsPerKey(name){
-  const keyDays=getSpecialCategoryRoundDays(name);
-  const rec=S.att2[name]||{};
+  const cats=getSpecialStudentCats(name);
   const counts={};
-  Object.keys(keyDays).forEach(k=>counts[k]=0);
-  Object.entries(rec).forEach(([d,v])=>{
-    if(!(v==="O"||v==="D"))return;
-    const dow=getDayOfWeekKR(d);
-    const matched=Object.keys(keyDays).find(k=>keyDays[k].has(dow));
-    if(matched)counts[matched]=(counts[matched]||0)+1;
+  cats.forEach(cat=>{
+    const rec=S.att2[attKey("special",name,cat)]||{};
+    Object.entries(rec).forEach(([d,v])=>{
+      if(!(v==="O"||v==="D"))return;
+      const round=(cat==="요점정리특강")?"1":(getRoundForDate(d)||"1");
+      const key=cat+"|"+round;
+      counts[key]=(counts[key]||0)+1;
+    });
   });
   return counts;
 }
@@ -917,9 +929,14 @@ function countSpecialSessionsPerKey(name){
 function specialPaymentStatus(name){
   const counts=countSpecialSessionsPerKey(name);
   const paidMap=(S.meta2[name]&&S.meta2[name].paidUpToByCat)||{};
-  return Object.entries(counts).map(([key,total])=>{
+  // 등록은 돼 있지만 아직 출석기록이 없는 (분류|회차) 조합도 0회차로 포함시킨다
+  const enrolled=calcSpecialEnrollments().filter(e=>e.name===name);
+  const allKeys=new Set(Object.keys(counts));
+  enrolled.forEach(e=>allKeys.add(e.cat+"|"+(e.round||"1")));
+  return[...allKeys].map(key=>{
     const idx=key.lastIndexOf("|");
     const cat=key.slice(0,idx),round=key.slice(idx+1);
+    const total=counts[key]||0;
     const due=Math.max(0,total-(paidMap[key]||0));
     return{cat,round,key,due,isDue:due>=4};
   });
@@ -1326,7 +1343,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
 
       // 수업현황 요약 + 이번달 출결 미니캘린더
       const curYM=toYM(new Date());
-      const attRec2=store.att[name]||{};
+      const attRec2=store.att[attKey(src,name,ms.cat)]||{};
       const dCnt2=daysInMonth(curYM);
       const[yy2,mm2]=curYM.split("-").map(Number);
       let O2=0,X2=0,D2=0;
@@ -1343,12 +1360,13 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         cell.appendChild(D({style:{fontSize:"11px",fontWeight:"700",color:"#999",marginBottom:"2px"}},[String(d)]));
         cell.appendChild(D({style:{fontSize:"15px",fontWeight:"900",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}},[v||"·"]));
         cell.addEventListener("click",()=>{
-          if(!store.att[name])store.att[name]={};
-          const curV=store.att[name][dk];
-          if(!curV)store.att[name][dk]="O";
-          else if(curV==="O")store.att[name][dk]="X";
-          else if(curV==="X")store.att[name][dk]="D";
-          else delete store.att[name][dk];
+          const ak2=attKey(src,name,ms.cat);
+          if(!store.att[ak2])store.att[ak2]={};
+          const curV=store.att[ak2][dk];
+          if(!curV)store.att[ak2][dk]="O";
+          else if(curV==="O")store.att[ak2][dk]="X";
+          else if(curV==="X")store.att[ak2][dk]="D";
+          else delete store.att[ak2][dk];
           build();
         });
         miniCal.appendChild(cell);
@@ -1491,7 +1509,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         onClick:()=>{ms.attM=ymAdd(ms.attM,1);build();}},["▶"]));
       modal.appendChild(mnav);
 
-      const rec=store.att[name]||{};
+      const rec=store.att[attKey(src,name,ms.cat)]||{};
       const days=daysInMonth(ms.attM);
       const[y,m]=ms.attM.split("-").map(Number);
       const dayNames=["일","월","화","수","목","금","토"];
@@ -1513,12 +1531,13 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         cell.appendChild(D({style:{fontSize:"10px",color:wd===0?"#d04040":wd===6?"#3a6ea8":"#777",fontWeight:"700",marginBottom:"2px"}},[String(d)]));
         cell.appendChild(D({style:{fontSize:"13px",fontWeight:"900",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}},[v||"·"]));
         cell.addEventListener("click",()=>{
-          if(!store.att[name])store.att[name]={};
-          const cur=store.att[name][dk];
-          if(!cur)store.att[name][dk]="O";
-          else if(cur==="O")store.att[name][dk]="X";
-          else if(cur==="X")store.att[name][dk]="D";
-          else delete store.att[name][dk];
+          const ak3=attKey(src,name,ms.cat);
+          if(!store.att[ak3])store.att[ak3]={};
+          const cur=store.att[ak3][dk];
+          if(!cur)store.att[ak3][dk]="O";
+          else if(cur==="O")store.att[ak3][dk]="X";
+          else if(cur==="X")store.att[ak3][dk]="D";
+          else delete store.att[ak3][dk];
           build();
         });
         weekRow.appendChild(cell);col++;
@@ -1908,7 +1927,7 @@ function buildScheduleCard(src){
             const nMeta=store.meta[n]||{};
             const nPending=!nMeta.free&&nMeta.active===false;
             const nl=Sp({className:"slot-name",title:(store.cats.find(c=>c.key===effCat)?.label||"")+(nPending?" · 예정(교습비 미반영)":""),style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),fontStyle:nPending?"italic":"normal",opacity:nPending?0.55:1,borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
-            const todayAtt=(store.att[n]||{})[new Date().toISOString().split("T")[0]];
+            const todayAtt=(store.att[attKey(src,n,effCat)]||{})[new Date().toISOString().split("T")[0]];
             if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":"↩"]));
             nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade,src);});
             nl.addEventListener("mouseenter",()=>{if(!isMatch)nl.style.background=effCC.bd;});
@@ -1992,14 +2011,14 @@ function renderSpecialPaymentDueCard(){
     rows.forEach(r=>{if(!byCat[r.cat])byCat[r.cat]=[];byCat[r.cat].push(r);});
     const buildCard=(r)=>{
       const dueStyle=r.isDue?{bg:"#fff3d6",bd:"#e8b448",tx:"#8a6419"}:{bg:"#edfaf3",bd:"#a0d8b8",tx:"#2a8a50"};
-      const cardEl=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",background:dueStyle.bg,border:`1.5px solid ${dueStyle.bd}`,borderRadius:"9px",padding:"8px 12px",cursor:"pointer"},
+      const cardEl=D({style:{display:"flex",flexDirection:"column",gap:"4px",background:dueStyle.bg,border:`1.5px solid ${dueStyle.bd}`,borderRadius:"9px",padding:"8px 12px",cursor:"pointer"},
         title:"클릭해서 결제 처리",
         onClick:()=>openStudentModal(r.name,r.cat,r.grade,"special")});
-      const leftWrap=D({style:{display:"flex",alignItems:"center",gap:"5px",overflow:"hidden"}});
-      leftWrap.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[r.name]));
-      leftWrap.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[r.round||"1"].t,borderRadius:"3px",padding:"1px 4px",fontWeight:"800"}},[ROUND_MAP[r.round||"1"].short]));
-      cardEl.appendChild(leftWrap);
-      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.due+"회차 미납"]));
+      cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx}},[r.name]));
+      const line2=D({style:{display:"flex",alignItems:"center",gap:"5px"}});
+      line2.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[r.round||"1"].t,borderRadius:"3px",padding:"1px 5px",fontWeight:"800",whiteSpace:"nowrap"}},[ROUND_MAP[r.round||"1"].short]));
+      line2.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.due+"회차 미납"]));
+      cardEl.appendChild(line2);
       return cardEl;
     };
     CATS2.filter(c=>byCat[c.key]).forEach(c=>{
@@ -2137,7 +2156,7 @@ function renderAtt(){
   thead.appendChild(htr);tbl.appendChild(thead);
   const tbody=h("tbody",{});
   stList.forEach((st,ri)=>{
-    const cc=store.cc[st.cat];const rec=store.att[st.name]||{};
+    const cc=store.cc[st.cat];const ak=attKey(src,st.name,st.cat);const rec=store.att[ak]||{};
     const tr=h("tr",{style:{background:ri%2===0?"#fff":"#f5f3ee"}});
     const ntd=h("td",{style:{paddingLeft:"14px",fontWeight:"700",cursor:"pointer",color:cc.t}});
     ntd.addEventListener("click",()=>openStudentModal(st.name,st.cat,st.grade,src));
@@ -2154,9 +2173,9 @@ function renderAtt(){
       const td=h("td",{style:{textAlign:"center",background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":(isOff?"#f0ece0":""),padding:"4px 0",cursor:"pointer",fontSize:"12px",fontWeight:"800",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}});
       td.appendChild(document.createTextNode(v||"·"));
       td.addEventListener("click",()=>{
-        if(!store.att[st.name])store.att[st.name]={};
-        const cur=store.att[st.name][dk];
-        if(!cur)store.att[st.name][dk]="O";else if(cur==="O")store.att[st.name][dk]="X";else if(cur==="X")store.att[st.name][dk]="D";else delete store.att[st.name][dk];
+        if(!store.att[ak])store.att[ak]={};
+        const cur=store.att[ak][dk];
+        if(!cur)store.att[ak][dk]="O";else if(cur==="O")store.att[ak][dk]="X";else if(cur==="X")store.att[ak][dk]="D";else delete store.att[ak][dk];
         render();
       });
       tr.appendChild(td);
