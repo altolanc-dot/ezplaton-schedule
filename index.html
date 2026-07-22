@@ -868,24 +868,43 @@ function getDayOfWeekKR(dateStr){
   const idx=new Date(dateStr+"T00:00:00").getDay();
   return["일","월","화","수","목","금","토"][idx];
 }
+// ── 자동 결제 기산일 규칙 ──────────────────────────────────
+// 초등_플라톤/중등_플라톤 분류는 결제 기산일을 사람이 매번 수동으로 관리하지 않고,
+// "전월 20일"을 기준으로 매달 자동 갱신되도록 한다. (오늘 날짜 기준으로 매번 새로 계산되므로
+// 달이 바뀌면 별도 조작 없이 자동으로 다음 달 기산일로 넘어간다.)
+const AUTO_BASE_CATS=["초등_플라톤","중등_플라톤"];
+function toISODate(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function getAutoBaseDate(){
+  const now=new Date();
+  return toISODate(new Date(now.getFullYear(),now.getMonth()-1,20)); // 전월 20일
+}
 // 등록일 이후 출석(O)+보강(D) 횟수를 분류(요일 기준)별로 나눠서 집계
-// 결제횟수 집계 기준일: '결제 기산일'을 별도로 설정했으면 그걸 우선 사용, 없으면 등록일 사용
+// 결제횟수 집계 기준일: AUTO_BASE_CATS 분류는 항상 자동(전월 20일), 그 외 분류는
+// '결제 기산일'을 별도로 설정했으면 그걸 우선 사용, 없으면 등록일 사용
 function getPayBaseDate(name){
   const m=S.meta[name]||{};
   return m.payBaseDate||m.regDate||"";
+}
+function getCategoryBaseDate(cat,fallbackRegDate){
+  if(AUTO_BASE_CATS.includes(cat))return getAutoBaseDate();
+  return fallbackRegDate;
 }
 function countSessionsPerCategory(name,regDate){
   const catDays=getStudentCategoryDays(name);
   const counts={};
   Object.keys(catDays).forEach(cat=>counts[cat]=0);
-  if(!regDate)return counts; // 결제 기산일 미설정 시 0부터 (전체 이력을 세지 않음)
   const rec=S.att[name]||{};
   Object.entries(rec).forEach(([d,v])=>{
     if(!(v==="O"||v==="D"))return;
-    if(d<regDate)return;
     const dow=getDayOfWeekKR(d);
     const matchedCat=Object.keys(catDays).find(cat=>catDays[cat].has(dow));
-    if(matchedCat)counts[matchedCat]=(counts[matchedCat]||0)+1;
+    if(!matchedCat)return;
+    const base=getCategoryBaseDate(matchedCat,regDate);
+    if(!base)return; // 기산일 미설정 시 집계 제외
+    if(d<base)return;
+    counts[matchedCat]=(counts[matchedCat]||0)+1;
   });
   return counts;
 }
@@ -945,11 +964,13 @@ function getPaymentThreshold(name,cat){
   return weekly*4;
 }
 // 분류별로 결제 주기(threshold) 단위 결제 대상 목록 반환: [{cat,due,threshold}]
+// AUTO_BASE_CATS(초등/중등 플라톤)는 선불 자동결제라 출석 기반 미납 추적 대상에서 제외
 function paymentDueByCategory(name,regDate){
   const counts=countSessionsPerCategory(name,regDate);
   const paidMap=(S.meta[name]&&S.meta[name].paidUpToByCat)||{};
   const list=[];
   Object.entries(counts).forEach(([cat,total])=>{
+    if(AUTO_BASE_CATS.includes(cat))return; // 선불 자동결제: 미납 개념 없음
     const threshold=getPaymentThreshold(name,cat);
     const unpaid=total-(paidMap[cat]||0);
     if(unpaid>threshold)list.push({cat,total,due:unpaid,threshold});
@@ -957,10 +978,11 @@ function paymentDueByCategory(name,regDate){
   return list;
 }
 // 전체 분류(미납 여부 상관없이) 결제 상태 반환: [{cat,total,due,threshold,isDue}]
+// AUTO_BASE_CATS(초등/중등 플라톤)는 선불 자동결제라 결과에서 제외 (미납 배너/카드 대상 아님)
 function allPaymentStatusByCategory(name,regDate){
   const counts=countSessionsPerCategory(name,regDate);
   const paidMap=(S.meta[name]&&S.meta[name].paidUpToByCat)||{};
-  return Object.entries(counts).map(([cat,total])=>{
+  return Object.entries(counts).filter(([cat])=>!AUTO_BASE_CATS.includes(cat)).map(([cat,total])=>{
     const threshold=getPaymentThreshold(name,cat);
     const due=Math.max(0,total-(paidMap[cat]||0));
     return{cat,total,due,threshold,isDue:due>threshold};
@@ -1293,17 +1315,36 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
       const gi=Inp({className:"field-input",value:ms.grade,placeholder:"예) 초3, 중2",style:{marginBottom:"12px"}});
       gi.addEventListener("input",e=>ms.grade=e.target.value);left.appendChild(gi);
       if(src==="main"){
+        if(AUTO_BASE_CATS.includes(ms.cat)){
+          left.appendChild(fLbl("결제 방식"));
+          const autoBox=D({style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"5px",background:"#f0ece0",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"9px 12px"}});
+          autoBox.appendChild(Sp({style:{fontSize:"11px",color:TS,background:"#ece6d5",borderRadius:"5px",padding:"2px 7px",fontWeight:"700"}},["선불 자동결제"]));
+          autoBox.appendChild(Sp({style:{fontWeight:"800",color:GOLD,fontSize:"13px"}},["매월 20일 · 다음 결제일 "+getAutoBaseDate()]));
+          left.appendChild(autoBox);
+          left.appendChild(D({style:{fontSize:"10px",color:"#ccc",marginBottom:"8px"}},["이 분류(초등/중등 플라톤)는 선불제로 매달 20일에 자동 결제되어, 출석 기반 미납 추적을 하지 않습니다"]));
+          if(!ms.free){
+            const pcCounts=countSessionsPerCategory(ms.name);
+            const pcTotal=pcCounts[ms.cat]||0;
+            const pcThreshold=getPaymentThreshold(ms.name,ms.cat);
+            const pcOk=pcTotal>=pcThreshold;
+            const pcBox=D({style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px",background:pcOk?"#edfaf3":"#fff8e8",border:`1px solid ${pcOk?"#a0d8b8":"#e8d488"}`,borderRadius:"9px",padding:"9px 12px"}});
+            pcBox.appendChild(Sp({style:{fontSize:"11px",color:pcOk?"#2a8a50":"#a3791f",fontWeight:"700"}},["이번 결제주기 출석 확인"]));
+            pcBox.appendChild(Sp({style:{fontWeight:"900",color:pcOk?"#2a8a50":"#a3791f",fontSize:"14px"}},[pcTotal+"/"+pcThreshold+"회"]));
+            left.appendChild(pcBox);
+          }
+        } else {
         left.appendChild(fLbl("결제 기산일"));
-        const pr=D({style:{display:"flex",alignItems:"center",gap:"6px",marginBottom:"12px"}});
-        const pi=Inp({type:"date",className:"field-input",value:ms.payBaseDate,style:{flex:"1"}});
-        pi.addEventListener("input",e=>{ms.payBaseDate=e.target.value;build();});
-        pr.appendChild(pi);
-        pr.appendChild(Bt({style:{fontSize:"11px",color:GOLD,background:"#f5edd8",border:`1px solid ${BORDER}`,borderRadius:"7px",padding:"7px 10px",cursor:"pointer",whiteSpace:"nowrap"},
-          onClick:()=>{ms.payBaseDate=new Date().toISOString().split("T")[0];build();}},["오늘부터"]));
-        if(ms.payBaseDate)pr.appendChild(Bt({style:{fontSize:"11px",color:TS,background:"none",border:"none",cursor:"pointer",textDecoration:"underline"},
-          onClick:()=>{ms.payBaseDate="";build();}},["해제"]));
-        left.appendChild(pr);
-        left.appendChild(D({style:{fontSize:"10px",color:"#ccc",marginTop:"-8px",marginBottom:"12px"}},["이 날짜 이후 출석/보강만 결제 회차 계산에 반영됩니다"]));
+          const pr=D({style:{display:"flex",alignItems:"center",gap:"6px",marginBottom:"12px"}});
+          const pi=Inp({type:"date",className:"field-input",value:ms.payBaseDate,style:{flex:"1"}});
+          pi.addEventListener("input",e=>{ms.payBaseDate=e.target.value;build();});
+          pr.appendChild(pi);
+          pr.appendChild(Bt({style:{fontSize:"11px",color:GOLD,background:"#f5edd8",border:`1px solid ${BORDER}`,borderRadius:"7px",padding:"7px 10px",cursor:"pointer",whiteSpace:"nowrap"},
+            onClick:()=>{ms.payBaseDate=new Date().toISOString().split("T")[0];build();}},["오늘부터"]));
+          if(ms.payBaseDate)pr.appendChild(Bt({style:{fontSize:"11px",color:TS,background:"none",border:"none",cursor:"pointer",textDecoration:"underline"},
+            onClick:()=>{ms.payBaseDate="";build();}},["해제"]));
+          left.appendChild(pr);
+          left.appendChild(D({style:{fontSize:"10px",color:"#ccc",marginTop:"-8px",marginBottom:"12px"}},["이 날짜 이후 출석/보강만 결제 회차 계산에 반영됩니다"]));
+        }
       }
       left.appendChild(fLbl("유/무료"));
       const fr=D({style:{display:"flex",gap:"7px",marginBottom:"12px"}});
@@ -1604,22 +1645,35 @@ function openLevelModal(level){
       gStudents.forEach(s=>{if(!catMap[s.cat])catMap[s.cat]=[];catMap[s.cat].push(s);});
       CATS.filter(c=>catMap[c.key]).forEach(c=>{
         const lst=catMap[c.key];const cc=CC[c.key];
-        // ── 미납 표시: 학생별로 결제 상태(isDue, total)를 미리 계산 ──
+        const isPrepaid=AUTO_BASE_CATS.includes(c.key);
+        // ── 표시 상태 미리 계산 ──
+        // 선불(초등/중등 플라톤): 미납 개념이 없으므로 "이번 결제주기 출석 N/4회" 확인용 표시
+        // 그 외 분류: 기존처럼 미납 여부(isDue)/미납 회차(dueTotal) 표시
         const withDue=lst.map(s=>{
-          if(s.free)return{...s,isDue:false,dueTotal:0};
+          if(s.free)return{...s,isDue:false,dueTotal:0,prepaidTotal:0,prepaidThreshold:0};
+          if(isPrepaid){
+            const counts=countSessionsPerCategory(s.name);
+            const total=counts[s.cat]||0;
+            const threshold=getPaymentThreshold(s.name,s.cat);
+            return{...s,isDue:false,dueTotal:0,prepaidTotal:total,prepaidThreshold:threshold};
+          }
           const ps=allPaymentStatusByCategory(s.name,getPayBaseDate(s.name)).find(p=>p.cat===s.cat);
-          return{...s,isDue:!!(ps&&ps.isDue),dueTotal:ps?ps.total:0};
+          return{...s,isDue:!!(ps&&ps.isDue),dueTotal:ps?ps.total:0,prepaidTotal:0,prepaidThreshold:0};
         });
         const dueCnt=withDue.filter(s=>s.isDue).length;
+        const shortCnt=isPrepaid?withDue.filter(s=>!s.free&&s.prepaidTotal<s.prepaidThreshold).length:0;
         const sec=D({style:{marginBottom:"10px"}});
         const secHead=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"6px"}});
-        secHead.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[c.label+" ("+lst.length+"명"+(dueCnt?" · 미납 "+dueCnt+"명":"")+")"]));
+        secHead.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[c.label+" ("+lst.length+"명"+(dueCnt?" · 미납 "+dueCnt+"명":"")+(shortCnt?" · 4회 미만 "+shortCnt+"명":"")+")"]));
         sec.appendChild(secHead);
         const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"6px"}});
         withDue.forEach(s=>{
+          const prepaidOk=isPrepaid&&!s.free&&s.prepaidTotal>=s.prepaidThreshold;
           const chip=D({className:"st-chip",style:{background:s.isDue?"#fff3d6":cc.li,border:`1.5px solid ${s.isDue?"#e8b448":cc.bd}`},onClick:()=>{ov.remove();openStudentModal(s.name,s.cat,s.grade);}});
           chip.appendChild(Sp({style:{color:s.isDue?"#8a6419":TM,fontWeight:"700"}},[s.name]));
-          if(s.isDue){
+          if(isPrepaid&&!s.free){
+            chip.appendChild(Sp({style:{fontSize:"10px",marginLeft:"4px",fontWeight:"800",color:prepaidOk?"#2a8a50":"#a3791f",background:prepaidOk?"#dcf2e8":"#fff3d6",borderRadius:"4px",padding:"1px 5px"}},[s.prepaidTotal+"/"+s.prepaidThreshold+"회"]));
+          } else if(s.isDue){
             chip.appendChild(Sp({style:{fontSize:"10px",color:"#8a6419",marginLeft:"4px",fontWeight:"800",background:"#ffe9b8",borderRadius:"4px",padding:"1px 5px"}},[s.dueTotal+"회차 미납"]));
           } else {
             chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[s.grade+" · "+(s.free?"무료":"주"+s.wc+"회")]));
