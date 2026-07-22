@@ -345,10 +345,6 @@ function applyData(d){
   repairDuplicateIds();
 }
 // ── id 충돌 방지/복구 ─────────────────────────────────────
-// idC/idC2는 항상 203/0에서 시작하는데, 새로고침 후 다시 생성되는 새 id가
-// 이미 저장된 데이터의 id와 우연히 겹치면 드래그 등으로 서로 다른 두 수업이
-// 같은 id를 공유하게 되어 하나를 옮기면 다른 하나도 같이 바뀌는 문제가 있었다.
-// 데이터를 불러올 때마다 실제 최대 id 기준으로 카운터를 맞추고, 중복 id는 새 id로 교체한다.
 function syncIdCounters(){
   let maxMain=203;
   S.sch.forEach(s=>{const m=/^s(\d+)$/.exec(s.id||"");if(m)maxMain=Math.max(maxMain,parseInt(m[1],10));});
@@ -1199,19 +1195,22 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
       const wrap=D({style:{display:"flex",gap:"24px"}});
       const left=D({style:{flex:"1"}});
       left.appendChild(mkTitle("👤",ms.name));
+      // 변경: 미납이 아니어도(진행중) 카운트가 있으면 배너를 보여주도록 dueList 구성 방식 변경
       let dueList=[];
       if(!ms.free){
         if(src==="main"){
-          dueList=paymentDueByCategory(ms.name,getPayBaseDate(ms.name)).map(d=>({...d,key:d.cat,label:CATS.find(c=>c.key===d.cat)?.label||d.cat}));
+          dueList=allPaymentStatusByCategory(ms.name,getPayBaseDate(ms.name)).filter(d=>d.total>0).map(d=>({...d,key:d.cat,label:CATS.find(c=>c.key===d.cat)?.label||d.cat}));
         } else if(src==="special"){
-          dueList=specialPaymentStatus(ms.name).filter(d=>d.isDue).map(d=>({cat:d.cat,total:d.total,due:d.due,threshold:4,key:d.key,label:(CATS2.find(c=>c.key===d.cat)?.label||d.cat)+" · "+ROUND_MAP[d.round||"1"].short}));
+          dueList=specialPaymentStatus(ms.name).filter(d=>d.total>0).map(d=>({cat:d.cat,total:d.total,due:d.due,threshold:4,key:d.key,isDue:d.isDue,label:(CATS2.find(c=>c.key===d.cat)?.label||d.cat)+" · "+ROUND_MAP[d.round||"1"].short}));
         }
       }
       if(dueList.length){
         const bannerWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px",marginBottom:"12px"}});
-        dueList.forEach(({cat,total,due,threshold,key,label})=>{
+        dueList.forEach(({cat,total,due,threshold,key,label,isDue})=>{
           const isEditingDue=ms.editingDueCat===key;
-          const banner=D({style:{background:"#fff3d6",border:"1.5px solid #e8b448",borderRadius:"9px",padding:"9px 12px",fontSize:"12px",fontWeight:"800",color:"#8a6419",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",flexWrap:"wrap"}});
+          // 미납(isDue): 경고색 / 진행중(!isDue): 중립색
+          const style=isDue?{bg:"#fff3d6",bd:"#e8b448",tx:"#8a6419"}:{bg:"#f0ece0",bd:"#ddd8c8",tx:"#8a8272"};
+          const banner=D({style:{background:style.bg,border:`1.5px solid ${style.bd}`,borderRadius:"9px",padding:"9px 12px",fontSize:"12px",fontWeight:"800",color:style.tx,display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",flexWrap:"wrap"}});
           if(isEditingDue){
             const editWrap=D({style:{display:"flex",alignItems:"center",gap:"6px",flex:"1"}});
             editWrap.appendChild(Sp({},[label+" —"]));
@@ -1236,11 +1235,11 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
             banner.appendChild(btnWrap);
           } else {
             const leftSp=D({style:{display:"flex",alignItems:"center",gap:"4px"}});
-            leftSp.appendChild(Sp({},["💰 "+label+" — "+total+"회차 미납"]));
-            leftSp.appendChild(Bt({style:{background:"none",border:"none",color:"#8a6419",cursor:"pointer",fontSize:"11px",padding:"0 2px"},title:"미납 회차 직접 수정",
+            leftSp.appendChild(Sp({},[(isDue?"💰 ":"📊 ")+label+" — "+total+"회차"+(isDue?" 미납":"")]));
+            leftSp.appendChild(Bt({style:{background:"none",border:"none",color:style.tx,cursor:"pointer",fontSize:"11px",padding:"0 2px"},title:"회차 직접 수정",
               onClick:()=>{ms.editingDueCat=key;build();}},["✏️"]));
             banner.appendChild(leftSp);
-            banner.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",whiteSpace:"nowrap"},
+            if(isDue)banner.appendChild(Bt({style:{background:"#8a6419",color:"#fff",border:"none",borderRadius:"6px",padding:"4px 10px",fontSize:"11px",fontWeight:"800",cursor:"pointer",whiteSpace:"nowrap"},
               onClick:()=>{
                 const metaStore=src==="main"?store.meta:S.meta2;
                 const meta=metaStore[ms.name]||{};
@@ -1605,15 +1604,26 @@ function openLevelModal(level){
       gStudents.forEach(s=>{if(!catMap[s.cat])catMap[s.cat]=[];catMap[s.cat].push(s);});
       CATS.filter(c=>catMap[c.key]).forEach(c=>{
         const lst=catMap[c.key];const cc=CC[c.key];
+        // ── 미납 표시: 학생별로 결제 상태(isDue, total)를 미리 계산 ──
+        const withDue=lst.map(s=>{
+          if(s.free)return{...s,isDue:false,dueTotal:0};
+          const ps=allPaymentStatusByCategory(s.name,getPayBaseDate(s.name)).find(p=>p.cat===s.cat);
+          return{...s,isDue:!!(ps&&ps.isDue),dueTotal:ps?ps.total:0};
+        });
+        const dueCnt=withDue.filter(s=>s.isDue).length;
         const sec=D({style:{marginBottom:"10px"}});
         const secHead=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"6px"}});
-        secHead.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[c.label+" ("+lst.length+"명)"]));
+        secHead.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[c.label+" ("+lst.length+"명"+(dueCnt?" · 미납 "+dueCnt+"명":"")+")"]));
         sec.appendChild(secHead);
         const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"6px"}});
-        lst.forEach(s=>{
-          const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`},onClick:()=>{ov.remove();openStudentModal(s.name,s.cat,s.grade);}});
-          chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
-          chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[s.grade+" · "+(s.free?"무료":"주"+s.wc+"회")]));
+        withDue.forEach(s=>{
+          const chip=D({className:"st-chip",style:{background:s.isDue?"#fff3d6":cc.li,border:`1.5px solid ${s.isDue?"#e8b448":cc.bd}`},onClick:()=>{ov.remove();openStudentModal(s.name,s.cat,s.grade);}});
+          chip.appendChild(Sp({style:{color:s.isDue?"#8a6419":TM,fontWeight:"700"}},[s.name]));
+          if(s.isDue){
+            chip.appendChild(Sp({style:{fontSize:"10px",color:"#8a6419",marginLeft:"4px",fontWeight:"800",background:"#ffe9b8",borderRadius:"4px",padding:"1px 5px"}},[s.dueTotal+"회차 미납"]));
+          } else {
+            chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[s.grade+" · "+(s.free?"무료":"주"+s.wc+"회")]));
+          }
           chips.appendChild(chip);
         });
         sec.appendChild(chips);
@@ -1654,16 +1664,28 @@ function openSpecialLevelModal(){
       gStudents.forEach(s=>{if(!catMap[s.cat])catMap[s.cat]=[];catMap[s.cat].push(s);});
       CATS2.filter(c=>catMap[c.key]).forEach(c=>{
         const lst=catMap[c.key].sort((a,b)=>(a.round||"1").localeCompare(b.round||"1"));const cc=CC2[c.key];
+        // ── 미납 표시: 특강 결제 상태 계산 ──
+        const withDue=lst.map(s=>{
+          if(s.free)return{...s,isDue:false,dueTotal:0};
+          const statusList=specialPaymentStatus(s.name);
+          const ps=statusList.find(p=>p.cat===s.cat&&(p.round||"1")===(s.round||"1"));
+          return{...s,isDue:!!(ps&&ps.isDue),dueTotal:ps?ps.total:0};
+        });
+        const dueCnt=withDue.filter(s=>s.isDue).length;
         const sec=D({style:{marginBottom:"10px"}});
         const secHead=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"6px"}});
-        secHead.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[c.label+" ("+lst.length+"명)"]));
+        secHead.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[c.label+" ("+lst.length+"명"+(dueCnt?" · 미납 "+dueCnt+"명":"")+")"]));
         sec.appendChild(secHead);
         const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"6px"}});
-        lst.forEach(s=>{
-          const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`},onClick:()=>{ov.remove();openStudentModal(s.name,s.cat,s.grade,"special");}});
-          chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
+        withDue.forEach(s=>{
+          const chip=D({className:"st-chip",style:{background:s.isDue?"#fff3d6":cc.li,border:`1.5px solid ${s.isDue?"#e8b448":cc.bd}`},onClick:()=>{ov.remove();openStudentModal(s.name,s.cat,s.grade,"special");}});
+          chip.appendChild(Sp({style:{color:s.isDue?"#8a6419":TM,fontWeight:"700"}},[s.name]));
           if(s.cat!=="요점정리특강")chip.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[s.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"4px",fontWeight:"800"}},[ROUND_MAP[s.round||"1"].short]));
-          chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[(s.grade?s.grade+" · ":"")+(s.free?"무료":"주"+s.wc+"회")]));
+          if(s.isDue){
+            chip.appendChild(Sp({style:{fontSize:"10px",color:"#8a6419",marginLeft:"4px",fontWeight:"800",background:"#ffe9b8",borderRadius:"4px",padding:"1px 5px"}},[s.dueTotal+"회차 미납"]));
+          } else {
+            chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[(s.grade?s.grade+" · ":"")+(s.free?"무료":"주"+s.wc+"회")]));
+          }
           chips.appendChild(chip);
         });
         sec.appendChild(chips);
