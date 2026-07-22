@@ -869,19 +869,29 @@ function getDayOfWeekKR(dateStr){
   return["일","월","화","수","목","금","토"][idx];
 }
 // ── 자동 결제 기산일 규칙 ──────────────────────────────────
-// 초등_플라톤/중등_플라톤 분류는 결제 기산일을 사람이 매번 수동으로 관리하지 않고,
-// "전월 20일"을 기준으로 매달 자동 갱신되도록 한다. (오늘 날짜 기준으로 매번 새로 계산되므로
-// 달이 바뀌면 별도 조작 없이 자동으로 다음 달 기산일로 넘어간다.)
+// 초등_플라톤/중등_플라톤 분류는 선불 자동결제(매달 20일)이므로 결제 기산일을 사람이
+// 매번 수동으로 관리하지 않는다. "가장 최근에 지난 20일"이 현재 결제 주기의 시작일이며,
+// 오늘 날짜 기준으로 매번 새로 계산되므로 20일이 지나면 자동으로 다음 주기로 넘어간다.
 const AUTO_BASE_CATS=["초등_플라톤","중등_플라톤"];
 function toISODate(d){
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
+// 현재 결제 주기 시작일(=마지막으로 결제된 20일). 오늘이 20일 이후면 이번달 20일, 이전이면 지난달 20일.
 function getAutoBaseDate(){
   const now=new Date();
-  return toISODate(new Date(now.getFullYear(),now.getMonth()-1,20)); // 전월 20일
+  const d=now.getDate();
+  const target=d>=20?new Date(now.getFullYear(),now.getMonth(),20):new Date(now.getFullYear(),now.getMonth()-1,20);
+  return toISODate(target);
+}
+// 다음 결제일(안내 표시용). 오늘이 20일 이전이면 이번달 20일, 이후면 다음달 20일.
+function getNextAutoPaymentDate(){
+  const now=new Date();
+  const d=now.getDate();
+  const target=d<20?new Date(now.getFullYear(),now.getMonth(),20):new Date(now.getFullYear(),now.getMonth()+1,20);
+  return toISODate(target);
 }
 // 등록일 이후 출석(O)+보강(D) 횟수를 분류(요일 기준)별로 나눠서 집계
-// 결제횟수 집계 기준일: AUTO_BASE_CATS 분류는 항상 자동(전월 20일), 그 외 분류는
+// 결제횟수 집계 기준일: AUTO_BASE_CATS 분류는 항상 자동(가장 최근 지난 20일), 그 외 분류는
 // '결제 기산일'을 별도로 설정했으면 그걸 우선 사용, 없으면 등록일 사용
 function getPayBaseDate(name){
   const m=S.meta[name]||{};
@@ -1319,7 +1329,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
           left.appendChild(fLbl("결제 방식"));
           const autoBox=D({style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"5px",background:"#f0ece0",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"9px 12px"}});
           autoBox.appendChild(Sp({style:{fontSize:"11px",color:TS,background:"#ece6d5",borderRadius:"5px",padding:"2px 7px",fontWeight:"700"}},["선불 자동결제"]));
-          autoBox.appendChild(Sp({style:{fontWeight:"800",color:GOLD,fontSize:"13px"}},["매월 20일 · 다음 결제일 "+getAutoBaseDate()]));
+          autoBox.appendChild(Sp({style:{fontWeight:"800",color:GOLD,fontSize:"13px"}},["매월 20일 · 다음 결제일 "+getNextAutoPaymentDate()]));
           left.appendChild(autoBox);
           left.appendChild(D({style:{fontSize:"10px",color:"#ccc",marginBottom:"8px"}},["이 분류(초등/중등 플라톤)는 선불제로 매달 20일에 자동 결제되어, 출석 기반 미납 추적을 하지 않습니다"]));
           if(!ms.free){
@@ -2120,7 +2130,13 @@ function renderPaymentDueCard(){
   const rows=[];
   stList.forEach(s=>{
     const statusList=allPaymentStatusByCategory(s.name,getPayBaseDate(s.name));
-    statusList.forEach(({cat,total,due,threshold,isDue})=>rows.push({name:s.name,grade:s.grade,cat,total,due,threshold,isDue}));
+    statusList.forEach(({cat,total,due,threshold,isDue})=>rows.push({name:s.name,grade:s.grade,cat,total,due,threshold,isDue,prepaid:false}));
+    // 선불(초등/중등 플라톤): 미납 개념은 없지만 월 4회 출석했는지 확인용으로 함께 표시
+    const counts=countSessionsPerCategory(s.name);
+    AUTO_BASE_CATS.forEach(cat=>{
+      if(counts[cat]===undefined)return; // 해당 분류 미수강
+      rows.push({name:s.name,grade:s.grade,cat,total:counts[cat],due:0,threshold:getPaymentThreshold(s.name,cat),isDue:false,prepaid:true});
+    });
   });
   rows.sort((a,b)=>(b.isDue-a.isDue)||(b.due-a.due));
   const dueTotal=rows.filter(r=>r.isDue).length;
@@ -2135,20 +2151,30 @@ function renderPaymentDueCard(){
     const byCat={};
     rows.forEach(r=>{if(!byCat[r.cat])byCat[r.cat]=[];byCat[r.cat].push(r);});
     const buildDueCard=(r)=>{
-      const dueStyle=r.isDue?{bg:"#fff3d6",bd:"#e8b448",tx:"#8a6419"}:{bg:"#edfaf3",bd:"#a0d8b8",tx:"#2a8a50"};
+      let dueStyle,label;
+      if(r.prepaid){
+        const ok=r.total>=r.threshold;
+        dueStyle=ok?{bg:"#edfaf3",bd:"#a0d8b8",tx:"#2a8a50"}:{bg:"#fff8e8",bd:"#e8d488",tx:"#a3791f"};
+        label=r.total+"/"+r.threshold+"회";
+      } else {
+        dueStyle=r.isDue?{bg:"#fff3d6",bd:"#e8b448",tx:"#8a6419"}:{bg:"#edfaf3",bd:"#a0d8b8",tx:"#2a8a50"};
+        label=r.total+"회차"+(r.isDue?" 미납":"");
+      }
       const cardEl=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",background:dueStyle.bg,border:`1.5px solid ${dueStyle.bd}`,borderRadius:"9px",padding:"8px 12px",cursor:"pointer"},
-        title:"클릭해서 결제 처리 · 기산일 수정",
+        title:r.prepaid?"선불 자동결제 · 클릭해서 학생 정보 보기":"클릭해서 결제 처리 · 기산일 수정",
         onClick:()=>openStudentModal(r.name,r.cat,r.grade,"main")});
       cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[r.name]));
-      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.total+"회차"+(r.isDue?" 미납":"")]));
+      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:(r.isDue||r.prepaid)?"800":"400",whiteSpace:"nowrap"}},[label]));
       return cardEl;
     };
     CATS.filter(c=>byCat[c.key]).forEach(c=>{
       const cc=CC[c.key];
       const catRows=byCat[c.key];
-      const catDueN=catRows.filter(r=>r.isDue).length;
+      const isPrepaidCat=AUTO_BASE_CATS.includes(c.key);
+      const catDueN=isPrepaidCat?0:catRows.filter(r=>r.isDue).length;
+      const shortN=isPrepaidCat?catRows.filter(r=>r.total<r.threshold).length:0;
       const section=D({style:{marginBottom:"4px"}});
-      section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+" ("+catRows.length+"명"+(catDueN?" · 미납 "+catDueN+"명":"")+")"]));
+      section.appendChild(D({style:{fontWeight:"800",fontSize:"12px",color:cc.t,marginBottom:"8px",paddingBottom:"4px",borderBottom:`1.5px solid ${cc.bd}`}},[c.label+" ("+catRows.length+"명"+(catDueN?" · 미납 "+catDueN+"명":"")+(shortN?" · 4회 미만 "+shortN+"명":"")+")"]));
       const grid=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,150px)",gap:"6px"}});
       catRows.forEach(r=>grid.appendChild(buildDueCard(r)));
       section.appendChild(grid);
