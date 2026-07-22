@@ -938,7 +938,7 @@ function specialPaymentStatus(name){
     const cat=key.slice(0,idx),round=key.slice(idx+1);
     const total=counts[key]||0;
     const due=Math.max(0,total-(paidMap[key]||0));
-    return{cat,round,key,due,isDue:due>=4};
+    return{cat,round,key,total,due,isDue:due>4};
   });
 }
 
@@ -955,18 +955,18 @@ function paymentDueByCategory(name,regDate){
   Object.entries(counts).forEach(([cat,total])=>{
     const threshold=getPaymentThreshold(name,cat);
     const unpaid=total-(paidMap[cat]||0);
-    if(unpaid>=threshold)list.push({cat,due:unpaid,threshold});
+    if(unpaid>threshold)list.push({cat,total,due:unpaid,threshold});
   });
   return list;
 }
-// 전체 분류(미납 여부 상관없이) 결제 상태 반환: [{cat,due,threshold,isDue}]
+// 전체 분류(미납 여부 상관없이) 결제 상태 반환: [{cat,total,due,threshold,isDue}]
 function allPaymentStatusByCategory(name,regDate){
   const counts=countSessionsPerCategory(name,regDate);
   const paidMap=(S.meta[name]&&S.meta[name].paidUpToByCat)||{};
   return Object.entries(counts).map(([cat,total])=>{
     const threshold=getPaymentThreshold(name,cat);
     const due=Math.max(0,total-(paidMap[cat]||0));
-    return{cat,due,threshold,isDue:due>=threshold};
+    return{cat,total,due,threshold,isDue:due>threshold};
   });
 }
 
@@ -1203,12 +1203,12 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         if(src==="main"){
           dueList=paymentDueByCategory(ms.name,getPayBaseDate(ms.name)).map(d=>({...d,key:d.cat,label:CATS.find(c=>c.key===d.cat)?.label||d.cat}));
         } else if(src==="special"){
-          dueList=specialPaymentStatus(ms.name).filter(d=>d.isDue).map(d=>({cat:d.cat,due:d.due,threshold:4,key:d.key,label:(CATS2.find(c=>c.key===d.cat)?.label||d.cat)+" · "+ROUND_MAP[d.round||"1"].short}));
+          dueList=specialPaymentStatus(ms.name).filter(d=>d.isDue).map(d=>({cat:d.cat,total:d.total,due:d.due,threshold:4,key:d.key,label:(CATS2.find(c=>c.key===d.cat)?.label||d.cat)+" · "+ROUND_MAP[d.round||"1"].short}));
         }
       }
       if(dueList.length){
         const bannerWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px",marginBottom:"12px"}});
-        dueList.forEach(({cat,due,threshold,key,label})=>{
+        dueList.forEach(({cat,total,due,threshold,key,label})=>{
           const isEditingDue=ms.editingDueCat===key;
           const banner=D({style:{background:"#fff3d6",border:"1.5px solid #e8b448",borderRadius:"9px",padding:"9px 12px",fontSize:"12px",fontWeight:"800",color:"#8a6419",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"6px",flexWrap:"wrap"}});
           if(isEditingDue){
@@ -1235,7 +1235,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
             banner.appendChild(btnWrap);
           } else {
             const leftSp=D({style:{display:"flex",alignItems:"center",gap:"4px"}});
-            leftSp.appendChild(Sp({},["💰 "+label+" — "+due+"회차 미납"]));
+            leftSp.appendChild(Sp({},["💰 "+label+" — "+total+"회차 미납"]));
             leftSp.appendChild(Bt({style:{background:"none",border:"none",color:"#8a6419",cursor:"pointer",fontSize:"11px",padding:"0 2px"},title:"미납 회차 직접 수정",
               onClick:()=>{ms.editingDueCat=key;build();}},["✏️"]));
             banner.appendChild(leftSp);
@@ -1994,7 +1994,7 @@ function renderSpecialPaymentDueCard(){
   uniqueNames.forEach(name=>{
     specialPaymentStatus(name).forEach(r=>{
       const entry=stList.find(s=>s.name===name&&s.cat===r.cat&&(s.round||"1")===r.round);
-      rows.push({name,cat:r.cat,round:r.round,due:r.due,isDue:r.isDue,grade:entry?entry.grade:""});
+      rows.push({name,cat:r.cat,round:r.round,total:r.total,due:r.due,isDue:r.isDue,grade:entry?entry.grade:""});
     });
   });
   rows.sort((a,b)=>(b.isDue-a.isDue)||(b.due-a.due));
@@ -2017,7 +2017,7 @@ function renderSpecialPaymentDueCard(){
       cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx}},[r.name]));
       const line2=D({style:{display:"flex",alignItems:"center",gap:"5px"}});
       line2.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[r.round||"1"].t,borderRadius:"3px",padding:"1px 5px",fontWeight:"800",whiteSpace:"nowrap"}},[ROUND_MAP[r.round||"1"].short]));
-      line2.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.due+"회차 미납"]));
+      line2.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[(r.isDue?r.total+"회차 미납":"0회차")]));
       cardEl.appendChild(line2);
       return cardEl;
     };
@@ -2043,7 +2043,7 @@ function renderPaymentDueCard(){
   const rows=[];
   stList.forEach(s=>{
     const statusList=allPaymentStatusByCategory(s.name,getPayBaseDate(s.name));
-    statusList.forEach(({cat,due,threshold,isDue})=>rows.push({name:s.name,grade:s.grade,cat,due,threshold,isDue}));
+    statusList.forEach(({cat,total,due,threshold,isDue})=>rows.push({name:s.name,grade:s.grade,cat,total,due,threshold,isDue}));
   });
   rows.sort((a,b)=>(b.isDue-a.isDue)||(b.due-a.due));
   const dueTotal=rows.filter(r=>r.isDue).length;
@@ -2063,7 +2063,7 @@ function renderPaymentDueCard(){
         title:"클릭해서 결제 처리 · 기산일 수정",
         onClick:()=>openStudentModal(r.name,r.cat,r.grade,"main")});
       cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[r.name]));
-      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.due+"회차 미납"]));
+      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[(r.isDue?r.total+"회차 미납":"0회차")]));
       return cardEl;
     };
     CATS.filter(c=>byCat[c.key]).forEach(c=>{
