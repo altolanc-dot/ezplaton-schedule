@@ -640,6 +640,21 @@ function calcStudentsPerSlot(src="main"){
   });
   return rows;
 }
+// 정규 시간표 "이름+분류" 단위 집계: 한 학생이 여러 분류(예: 플라톤+이지)를 동시에 들어도
+// 분류별로 각각 별도 집계된다. calcStudents()는 학생 1명당 "대표 분류" 하나만 골라 합산하기 때문에
+// 여러 분류를 듣는 학생의 인원수·교습비가 상단 요약에서 누락/오집계되는 문제가 있어, 요약 카드류는
+// 이 함수를 사용해야 한다.
+function calcStudentsByCategory(src="main"){
+  const rows=calcStudentsPerSlot(src);
+  const agg={};
+  rows.forEach(r=>{
+    const key=r.name+"|"+r.cat;
+    if(!agg[key])agg[key]={name:r.name,cat:r.cat,grade:r.grade,free:r.free,active:r.active,pending:r.pending,monthly:0,wc:0};
+    agg[key].monthly+=r.free?0:r.fee;
+    agg[key].wc++;
+  });
+  return Object.values(agg);
+}
 // 특강 "등록" 단위 집계: 같은 학생이라도 분류(과목)가 다르면 별도 등록으로 카운트,
 // 같은 분류+회차 안에서 주 여러 회 반복되는 건 1건으로 합쳐서 반영 (패키지 총액 개념)
 function calcSpecialEnrollments(){
@@ -1799,9 +1814,10 @@ function openFeeModal(){
 function renderKpiSummary(src="main"){
   const cats=src==="special"?CATS2:CATS;
   const cc2map=src==="special"?CC2:CC;
-  const stList=src==="special"?calcSpecialEnrollments():calcStudents(src);
+  const stList=src==="special"?calcSpecialEnrollments():calcStudents(src); // 총원/무료 카운트용 (학생 1명당 1행)
+  const byCatList=src==="special"?stList:calcStudentsByCategory(src); // 분류별 카운트·매출용 (여러 분류 수강 시 분류마다 별도 집계)
   const totalStudents=stList.length;
-  const totalRevenue=stList.reduce((a,s)=>a+(s.free?0:s.monthly),0);
+  const totalRevenue=byCatList.reduce((a,s)=>a+(s.free?0:s.monthly),0);
   const wrap=D({style:{display:"flex",flexDirection:"column",gap:"10px"}});
 
   // Row A: 학생수 현황
@@ -1812,7 +1828,7 @@ function renderKpiSummary(src="main"){
   const freeCnt=stList.filter(s=>s.free).length;
   cardA.appendChild(D({className:"kpi-sub"},[freeCnt>0?"무료 "+freeCnt+"명 포함":"전원 유료"]));
   rowA.appendChild(cardA);
-  const catCounts=cats.map(c=>({...c,cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
+  const catCounts=cats.map(c=>({...c,cnt:byCatList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
   catCounts.forEach(c=>{
     const cc=cc2map[c.key];
     const pct=totalStudents>0?Math.round(c.cnt/totalStudents*100):0;
@@ -1834,7 +1850,7 @@ function renderKpiSummary(src="main"){
   cardB.appendChild(D({className:"kpi-val"},[(totalRevenue/10000).toFixed(0)+"만원"]));
   cardB.appendChild(D({className:"kpi-sub"},[totalRevenue.toLocaleString()+"원"]));
   rowB.appendChild(cardB);
-  const catRevenue=cats.map(c=>({...c,rev:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+(s.free?0:s.monthly),0)})).filter(c=>c.rev>0);
+  const catRevenue=cats.map(c=>({...c,rev:byCatList.filter(s=>s.cat===c.key).reduce((a,s)=>a+(s.free?0:s.monthly),0)})).filter(c=>c.rev>0);
   catRevenue.forEach(c=>{
     const cc=cc2map[c.key];
     const pct=totalRevenue>0?Math.round(c.rev/totalRevenue*100):0;
@@ -2304,7 +2320,8 @@ function renderChart(){
   chartInst.forEach(c=>{try{c.destroy();}catch(e){}});chartInst=[];
   const isSpecialStat=(S.statView||"main")==="special";
   const chartSrc0=isSpecialStat?"special":"main";
-  const stList=isSpecialStat?calcSpecialEnrollments():calcStudents(chartSrc0);
+  const stList=isSpecialStat?calcSpecialEnrollments():calcStudents(chartSrc0); // 총 학생수(고유인원)용
+  const byCatList=isSpecialStat?stList:calcStudentsByCategory(chartSrc0); // 분류별 인원·교습비용 (다중분류 수강 학생도 분류마다 정확히 집계)
   const wrap=D({});
 
   // 전역 토글: 통계 탭 전체를 정규/특강으로 전환 (시간표 탭과 동일한 방식)
@@ -2325,7 +2342,7 @@ function renderChart(){
   const sg=D({className:"summary-grid",style:{gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))"}});
   const sumCats=isSpecialStat?CATS2:CATS;
   const SHORT_LABEL={초등_플라톤:"초등플라톤",초등_이지:"초등이지",중등_플라톤:"중등플라톤",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인",역사특강_34:"역사(3·4)",역사특강_56:"역사(5·6)",요점정리특강:"요점정리",어휘력특강:"어휘력",중등특강:"중등특강"};
-  const sumCatTotals=sumCats.map(c=>({key:c.key,total:stList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),cnt:stList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
+  const sumCatTotals=sumCats.map(c=>({key:c.key,total:byCatList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),cnt:byCatList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
   const sumItems=[{l:"총 학생수",cnt:stList.length}];
   sumCatTotals.forEach(c=>sumItems.push({l:SHORT_LABEL[c.key]||c.key,cnt:c.cnt}));
   sumItems.forEach(item=>{
@@ -2349,10 +2366,12 @@ function renderChart(){
     feeCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["💰 교습비 요약"])]));
     const fg=D({className:"summary-grid",style:{gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))"}});
     FEE_GROUPS.forEach(grp=>{
-      const total=stList.filter(s=>grp.keys.includes(s.cat)).reduce((a,s)=>a+s.monthly,0);
+      const grpRows=byCatList.filter(s=>grp.keys.includes(s.cat));
+      const total=grpRows.reduce((a,s)=>a+(s.free?0:s.monthly),0);
+      const payingCnt=grpRows.filter(s=>!s.free).length;
       const fi=D({className:"summary-item"});
       fi.appendChild(D({className:"summary-val",style:{fontSize:"17px"}},[total.toLocaleString()+"원"]));
-      fi.appendChild(D({className:"summary-sub"},[grp.label]));
+      fi.appendChild(D({className:"summary-sub"},[grp.label+" ("+payingCnt+"명)"]));
       fg.appendChild(fi);
     });
     feeCard.appendChild(fg);
