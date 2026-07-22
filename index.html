@@ -880,12 +880,13 @@ function getPayBaseDate(name){
 }
 function countSessionsPerCategory(name,regDate){
   const catDays=getStudentCategoryDays(name);
-  const rec=S.att[name]||{};
   const counts={};
   Object.keys(catDays).forEach(cat=>counts[cat]=0);
+  if(!regDate)return counts; // 결제 기산일 미설정 시 0부터 (전체 이력을 세지 않음)
+  const rec=S.att[name]||{};
   Object.entries(rec).forEach(([d,v])=>{
     if(!(v==="O"||v==="D"))return;
-    if(regDate&&d<regDate)return;
+    if(d<regDate)return;
     const dow=getDayOfWeekKR(d);
     const matchedCat=Object.keys(catDays).find(cat=>catDays[cat].has(dow));
     if(matchedCat)counts[matchedCat]=(counts[matchedCat]||0)+1;
