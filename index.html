@@ -2040,7 +2040,7 @@ function renderSpecialPaymentDueCard(){
       cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx}},[r.name]));
       const line2=D({style:{display:"flex",alignItems:"center",gap:"5px"}});
       line2.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[r.round||"1"].t,borderRadius:"3px",padding:"1px 5px",fontWeight:"800",whiteSpace:"nowrap"}},[ROUND_MAP[r.round||"1"].short]));
-      line2.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[(r.isDue?r.total+"회차 미납":"0회차")]));
+      line2.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.total+"회차"+(r.isDue?" 미납":"")]));
       cardEl.appendChild(line2);
       return cardEl;
     };
@@ -2086,7 +2086,7 @@ function renderPaymentDueCard(){
         title:"클릭해서 결제 처리 · 기산일 수정",
         onClick:()=>openStudentModal(r.name,r.cat,r.grade,"main")});
       cardEl.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:dueStyle.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[r.name]));
-      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[(r.isDue?r.total+"회차 미납":"0회차")]));
+      cardEl.appendChild(Sp({style:{fontSize:"11px",color:dueStyle.tx,fontWeight:r.isDue?"800":"400",whiteSpace:"nowrap"}},[r.total+"회차"+(r.isDue?" 미납":"")]));
       return cardEl;
     };
     CATS.filter(c=>byCat[c.key]).forEach(c=>{
