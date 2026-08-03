@@ -2103,10 +2103,14 @@ function renderSpecialPaymentDueCard(){
   });
   rows.sort((a,b)=>(b.isDue-a.isDue)||(b.due-a.due));
   const dueTotal=rows.filter(r=>r.isDue).length;
+  const isOpen=!!S.specialPaymentCardOpen;
   const card=D({className:"card no-print"});
-  const head=D({className:"card-head"});
+  const head=D({className:"card-head",style:{cursor:"pointer"}});
+  head.addEventListener("click",()=>{S.specialPaymentCardOpen=!S.specialPaymentCardOpen;render();});
   head.appendChild(Sp({className:"card-title"},["💰 특강 결제 현황"+(dueTotal?" · 미납 "+dueTotal+"건":" · 미납 없음")]));
+  head.appendChild(Sp({style:{fontSize:"12px",color:TS,fontWeight:"700"}},[isOpen?"▲ 접기":"▼ 펼치기"]));
   card.appendChild(head);
+  if(!isOpen)return card;
   const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"14px"}});
   if(!rows.length){
     body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["등록된 특강 학생이 없습니다."]));
@@ -2157,10 +2161,14 @@ function renderPaymentDueCard(){
   });
   rows.sort((a,b)=>(b.isDue-a.isDue)||(b.due-a.due));
   const dueTotal=rows.filter(r=>r.isDue).length;
+  const isOpen=!!S.paymentCardOpen;
   const card=D({className:"card no-print"});
-  const head=D({className:"card-head"});
+  const head=D({className:"card-head",style:{cursor:"pointer"}});
+  head.addEventListener("click",()=>{S.paymentCardOpen=!S.paymentCardOpen;render();});
   head.appendChild(Sp({className:"card-title"},["💰 결제 현황"+(dueTotal?" · 미납 "+dueTotal+"건":" · 미납 없음")]));
+  head.appendChild(Sp({style:{fontSize:"12px",color:TS,fontWeight:"700"}},[isOpen?"▲ 접기":"▼ 펼치기"]));
   card.appendChild(head);
+  if(!isOpen)return card;
   const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"14px"}});
   if(!rows.length){
     body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["등록된 학생이 없습니다."]));
