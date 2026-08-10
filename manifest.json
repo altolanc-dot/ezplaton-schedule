@@ -1,0 +1,17 @@
+{
+  "name": "이지플라톤 시간표",
+  "short_name": "이지플라톤",
+  "description": "이지플라톤·이지국어 학원 시간표/출결/교습비 관리",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f3ee",
+  "theme_color": "#161d33",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
