@@ -74,13 +74,13 @@ main{padding:20px 28px;display:flex;flex-direction:column;gap:18px;}
 table.tt{border-collapse:separate;border-spacing:0;min-width:700px;width:100%;}
 table.tt th,table.tt td{border:0.5px solid #e5e0d3;background-clip:padding-box;}
 table.tt thead th{background:#1b2540;font-weight:800;font-size:13px;letter-spacing:2px;padding:10px;text-align:center;color:#cfd6ea;}
-table.tt .time-col{background:#f5f3ee;text-align:right;padding:0 8px;font-size:24px;font-weight:800;color:#8a8272;white-space:nowrap;vertical-align:middle;width:78px;}
+table.tt .time-col{background:#f5f3ee;text-align:right;padding:0 8px;font-size:17px;font-weight:800;color:#8a8272;white-space:nowrap;vertical-align:middle;width:60px;}
 table.tt .ap-col{text-align:center;font-weight:900;font-size:10px;writing-mode:vertical-rl;letter-spacing:4px;padding:3px 2px;width:18px;}
 table.tt .empty-cell{background:#fafaf7;cursor:pointer;min-width:100px;}
 table.tt .empty-cell:hover{background:#ece6d5;}
 table.tt .slot-cell{cursor:default;min-width:100px;padding:7px 9px;vertical-align:top;}
 .slot-grade{font-size:18px;font-weight:800;margin-bottom:3px;line-height:1.4;cursor:pointer;opacity:.9;}
-.slot-name{display:inline-block;font-size:15px;font-weight:700;line-height:1.9;cursor:pointer;padding:1px 5px;border-radius:4px;}
+.slot-name{display:inline-block;font-size:20px;font-weight:700;line-height:1.8;cursor:pointer;padding:1px 6px;border-radius:4px;}
 .leg-badge{border-radius:5px;padding:2px 9px;font-size:11px;font-weight:700;}
 table.tt tbody tr:hover td.time-col{background:#ece6d5;color:#a3791f;font-weight:900;}
 table.stat{width:100%;border-collapse:collapse;font-size:12px;}
@@ -859,9 +859,9 @@ function renderTodayCard(){
       const ccMap=slot.isSpecial?CC2:CC;
       const cc=slot.isMakeup?{t:"#c07020",bg:"#fce4c8",bd:"#f0b070",li:"#fff2e0"}:ccMap[slot.cat];
       const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:"10px",padding:"8px 12px"}});
-      row.appendChild(Sp({style:{fontWeight:"900",fontSize:"14px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
+      row.appendChild(Sp({style:{fontWeight:"900",fontSize:"16px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
       const labelText=slot.isMakeup?("🔁 보강"+(slot.grade?" · "+slot.grade:"")):((slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||""));
-      row.appendChild(Sp({style:{fontSize:"13px",color:cc.t,fontWeight:"800",whiteSpace:"nowrap"}},[labelText]));
+      row.appendChild(Sp({style:{fontSize:"15px",color:cc.t,fontWeight:"800",whiteSpace:"nowrap"}},[labelText]));
       const attStore=slot.isSpecial?S.att2:S.att;
       const chips=D({style:{display:"flex",gap:"6px",flexWrap:"wrap",alignItems:"center"}});
       slot.names.forEach(n=>{
@@ -869,7 +869,7 @@ function renderTodayCard(){
         const effCat0=ps0.cat||slot.cat;
         const ak=slot.isMakeup?attKey("main",n):attKey(slot.isSpecial?"special":"main",n,effCat0);
         const v=(attStore[ak]||{})[dateKey];
-        const chip=Bt({style:{borderRadius:"7px",padding:"5px 12px",fontSize:"13px",fontWeight:"800",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
+        const chip=Bt({style:{borderRadius:"7px",padding:"5px 12px",fontSize:"17px",fontWeight:"800",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
           onClick:()=>{
             if(!attStore[ak])attStore[ak]={};
             const cur=attStore[ak][dateKey];
