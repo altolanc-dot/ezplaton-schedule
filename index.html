@@ -300,6 +300,7 @@ let S={
   bf2:{...BFD2_INIT},
   meta2:{},
   att2:{},
+  makeup:[], // 특정 날짜에만 적용되는 보강 예약: {id,date,time,cat,grade,names:[]}
   tab:"tt",
   view:"main",
   attMonth:toYM(new Date()),
@@ -311,6 +312,7 @@ let S={
 };
 let idC=203; const nid=()=>`s${++idC}`;
 let idC2=0; const nid2=()=>`t${++idC2}`;
+let idC3=0; const nid3=()=>`mk${++idC3}`;
 let chartInst=[];
 
 function toYM(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");}
@@ -336,7 +338,7 @@ function localSave(){
 let autoSaveTimer=null,isApplyingRemote=false,firstSnapshotReceived=false;
 let lastSavedJSON=null; // 마지막으로 저장(전송)한 데이터의 스냅샷 - 불필요한 재저장/재렌더 루프 방지
 const MY_ID=Math.random().toString(36).slice(2)+Date.now();
-function packData(){return{sch:S.sch,bf:S.bf,meta:S.meta,att:S.att,memo:S.memo,sched:S.sched,revHistory:S.revHistory,sch2:S.sch2,bf2:S.bf2,meta2:S.meta2,att2:S.att2};}
+function packData(){return{sch:S.sch,bf:S.bf,meta:S.meta,att:S.att,memo:S.memo,sched:S.sched,revHistory:S.revHistory,sch2:S.sch2,bf2:S.bf2,meta2:S.meta2,att2:S.att2,makeup:S.makeup};}
 function applyData(d){
   if(d.sch&&d.sch.length)S.sch=d.sch;
   if(d.bf)S.bf={...BFD_INIT,...d.bf};
@@ -349,6 +351,7 @@ function applyData(d){
   if(d.bf2)S.bf2={...BFD2_INIT,...d.bf2};
   if(d.meta2)S.meta2=d.meta2;
   if(d.att2)S.att2=d.att2;
+  if(d.makeup)S.makeup=d.makeup;
   syncIdCounters();
   repairDuplicateIds();
 }
@@ -446,6 +449,43 @@ function openScheduleModal(dateKey){
   modal.appendChild(br);
   ov.appendChild(modal);document.body.appendChild(ov);
 }
+// ── 보강 예약 (특정 날짜에만 적용, 정규 시간표는 건드리지 않음) ──────
+function openMakeupModal(dateKey,editId){
+  const editing=editId?S.makeup.find(m=>m.id===editId):null;
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(380);
+  modal.appendChild(mkTitle("🔁",dateKey+" 보강 "+(editing?"편집":"추가")));
+  modal.appendChild(fLbl("시간"));
+  const timeSel=h("select",{className:"field-input",style:{marginBottom:"12px"}});
+  AK.forEach(tk=>{
+    const opt=h("option",{value:tk},[tk.replace(/[AP]M /,"")+" ("+tk.slice(0,2)+")"]);
+    if(editing&&editing.time===tk)opt.setAttribute("selected","true");
+    timeSel.appendChild(opt);
+  });
+  modal.appendChild(timeSel);
+  modal.appendChild(fLbl("학년/분류 표시(선택)"));
+  const gradeInp=Inp({className:"field-input",placeholder:"예) 초3, 중2",value:editing?editing.grade:"",style:{marginBottom:"12px"}});
+  modal.appendChild(gradeInp);
+  modal.appendChild(fLbl("학생 이름 (한 줄에 한 명)"));
+  const namesTa=Ta({className:"field-input",rows:"3",placeholder:"김철수\n이영희",style:{marginBottom:"14px"}},[editing?editing.names.join("\n"):""]);
+  modal.appendChild(namesTa);
+  const br=D({className:"modal-row"});
+  if(editing){
+    br.appendChild(Bt({className:"btn btn-ghost",style:{color:"#d04040"},onClick:()=>{
+      S.makeup=S.makeup.filter(m=>m.id!==editId);ov.remove();render();
+    }},["🗑 삭제"]));
+  }
+  br.appendChild(Bt({className:"btn btn-ghost",onClick:()=>ov.remove()},["취소"]));
+  br.appendChild(Bt({className:"btn btn-primary",onClick:()=>{
+    const names=namesTa.value.split("\n").map(n=>n.trim()).filter(Boolean);
+    if(!names.length){ov.remove();return;}
+    const entry={id:editing?editing.id:nid3(),date:dateKey,time:timeSel.value,grade:gradeInp.value.trim(),names};
+    if(editing)S.makeup=S.makeup.map(m=>m.id===editId?entry:m);
+    else S.makeup=[...S.makeup,entry];
+    ov.remove();render();
+  }},["💾 저장"]));
+  modal.appendChild(br);
+  ov.appendChild(modal);document.body.appendChild(ov);
+}
 function renderScheduleCalendar(){
   const card=D({className:"card"});
   const head=D({className:"card-head"});
@@ -479,11 +519,15 @@ function renderScheduleCalendar(){
     const dk=S.calMonth+"-"+String(d).padStart(2,"0");
     const wd=new Date(y,m-1,d).getDay();
     const hasMemo=!!S.sched[dk];
+    const hasMakeup=S.makeup.some(mk=>mk.date===dk);
     const isToday=dk===todayKey;
     const isSel=dk===selDate;
     const cell=D({style:{textAlign:"center",borderRadius:"6px",padding:"4px 2px",cursor:"pointer",background:isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent",border:isSel?`1.5px solid ${GOLD}`:isToday?"1.5px solid #cfe0f0":"1px solid transparent"}});
     cell.appendChild(D({style:{fontSize:"11px",color:wd===0?"#d04040":wd===6?"#3a6ea8":"#666",fontWeight:isSel||isToday?"900":"600"}},[String(d)]));
-    if(hasMemo)cell.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:GOLD,margin:"2px auto 0"}}));
+    const dotWrap=D({style:{display:"flex",justifyContent:"center",gap:"3px",marginTop:"2px"}});
+    if(hasMemo)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:GOLD}}));
+    if(hasMakeup)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:"#e08020"}}));
+    if(hasMemo||hasMakeup)cell.appendChild(dotWrap);
     cell.addEventListener("click",()=>{S.selDate=dk;render();});
     cell.addEventListener("mouseenter",()=>{if(!isSel)cell.style.background="#f0ece0";});
     cell.addEventListener("mouseleave",()=>{cell.style.background=isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent";});
@@ -503,6 +547,25 @@ function renderScheduleCalendar(){
     memoCol.appendChild(D({style:{fontSize:"13px",color:TM,background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"8px",padding:"10px 12px",whiteSpace:"pre-wrap",minHeight:"36px"}},[S.sched[selDate]]));
   } else {
     memoCol.appendChild(D({style:{fontSize:"12px",color:"#ccc",border:`1px dashed ${BORDER}`,borderRadius:"8px",padding:"10px 12px"}},["등록된 일정이 없습니다."]));
+  }
+
+  // ── 보강 예약 목록 ──
+  const mkHead=D({style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"4px"}});
+  mkHead.appendChild(Sp({style:{fontWeight:"800",color:"#c07020",fontSize:"12px"}},["🔁 보강 예약"]));
+  mkHead.appendChild(Bt({className:"btn btn-ghost",style:{fontSize:"10px",padding:"3px 9px",color:"#c07020"},onClick:()=>openMakeupModal(selDate)},["➕ 추가"]));
+  memoCol.appendChild(mkHead);
+  const mkList=S.makeup.filter(mk=>mk.date===selDate);
+  if(mkList.length){
+    const mkWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px"}});
+    mkList.forEach(mk=>{
+      const row=D({style:{fontSize:"12px",color:"#8a6419",background:"#fff3d6",border:"1px solid #e8b448",borderRadius:"8px",padding:"7px 10px",cursor:"pointer"},onClick:()=>openMakeupModal(selDate,mk.id)});
+      row.appendChild(Sp({style:{fontWeight:"800"}},[mk.time.replace(/[AP]M /,"")+(mk.grade?" · "+mk.grade:"")]));
+      row.appendChild(D({style:{marginTop:"2px",color:"#8a6419"}},[mk.names.join(", ")]));
+      mkWrap.appendChild(row);
+    });
+    memoCol.appendChild(mkWrap);
+  } else {
+    memoCol.appendChild(D({style:{fontSize:"12px",color:"#ccc",border:`1px dashed ${BORDER}`,borderRadius:"8px",padding:"10px 12px"}},["예약된 보강이 없습니다."]));
   }
   body.appendChild(memoCol);
 
@@ -747,16 +810,18 @@ function getActiveSpecialRound(today){
 }
 function renderTodayCard(){
   const{dayName,dateKey,today}=getTodayInfo();
-  const mainSlots=S.sch.filter(s=>s.day===dayName&&s.names&&s.names.length).map(s=>({...s,isSpecial:false}));
+  const mainSlots=S.sch.filter(s=>s.day===dayName&&s.names&&s.names.length).map(s=>({...s,isSpecial:false,isMakeup:false}));
   const activeRound=getActiveSpecialRound(today);
   let specialSlots=[];
   if(activeRound){
     specialSlots=S.sch2.filter(s=>s.day===dayName&&s.names&&s.names.length).map(s=>{
       const names=s.names.filter(n=>((s.perStudent&&s.perStudent[n]&&s.perStudent[n].round)||"1")===activeRound);
-      return names.length?{...s,names,isSpecial:true}:null;
+      return names.length?{...s,names,isSpecial:true,isMakeup:false}:null;
     }).filter(Boolean);
   }
-  const slots=[...mainSlots,...specialSlots].sort((a,b)=>AK.indexOf(a.time)-AK.indexOf(b.time));
+  // 오늘 날짜로 예약된 보강(정규 시간표와 무관하게 특정 날짜에만 추가된 수업)
+  const makeupSlots=S.makeup.filter(mk=>mk.date===dateKey).map(mk=>({id:mk.id,time:mk.time,grade:mk.grade,names:mk.names,isSpecial:false,isMakeup:true}));
+  const slots=[...mainSlots,...specialSlots,...makeupSlots].sort((a,b)=>AK.indexOf(a.time)-AK.indexOf(b.time));
   const card=D({className:"card"});
   const head=D({className:"card-head"});
   head.appendChild(Sp({className:"card-title"},["📌 오늘 수업 ("+dayName+") · "+(today.getMonth()+1)+"월 "+today.getDate()+"일"+(activeRound?" · 🏖 특강 "+ROUND_MAP[activeRound].short+" 기간":"")]));
@@ -768,22 +833,23 @@ function renderTodayCard(){
     slots.forEach(slot=>{
       const catsArr=slot.isSpecial?CATS2:CATS;
       const ccMap=slot.isSpecial?CC2:CC;
-      const cc=ccMap[slot.cat];
+      const cc=slot.isMakeup?{t:"#c07020",bg:"#fce4c8",bd:"#f0b070",li:"#fff2e0"}:ccMap[slot.cat];
       const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:"10px",padding:"8px 12px"}});
       row.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
-      row.appendChild(Sp({style:{fontSize:"11px",color:cc.t,fontWeight:"700",whiteSpace:"nowrap"}},[(slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||"")]));
+      const labelText=slot.isMakeup?("🔁 보강"+(slot.grade?" · "+slot.grade:"")):((slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||""));
+      row.appendChild(Sp({style:{fontSize:"11px",color:cc.t,fontWeight:"700",whiteSpace:"nowrap"}},[labelText]));
       const attStore=slot.isSpecial?S.att2:S.att;
       const chips=D({style:{display:"flex",gap:"6px",flexWrap:"wrap"}});
       slot.names.forEach(n=>{
         const ps0=(slot.perStudent&&slot.perStudent[n])||{};
         const effCat0=ps0.cat||slot.cat;
-        const ak=attKey(slot.isSpecial?"special":"main",n,effCat0);
+        const ak=slot.isMakeup?attKey("main",n):attKey(slot.isSpecial?"special":"main",n,effCat0);
         const v=(attStore[ak]||{})[dateKey];
         const chip=Bt({style:{borderRadius:"7px",padding:"4px 10px",fontSize:"12px",fontWeight:"700",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
           onClick:()=>{
             if(!attStore[ak])attStore[ak]={};
             const cur=attStore[ak][dateKey];
-            if(!cur)attStore[ak][dateKey]="O";
+            if(!cur)attStore[ak][dateKey]=slot.isMakeup?"D":"O";
             else if(cur==="O")attStore[ak][dateKey]="X";
             else if(cur==="X")attStore[ak][dateKey]="D";
             else delete attStore[ak][dateKey];
@@ -791,6 +857,7 @@ function renderTodayCard(){
           }},[n+(v?" "+(v==="O"?"✓":v==="X"?"✗":"↩"):"")]);
         chips.appendChild(chip);
       });
+      if(slot.isMakeup)chips.appendChild(Bt({style:{border:"none",background:"none",color:"#c07020",fontSize:"11px",cursor:"pointer",textDecoration:"underline"},onClick:()=>openMakeupModal(dateKey,slot.id)},["편집"]));
       row.appendChild(chips);
       body.appendChild(row);
     });
