@@ -80,7 +80,7 @@ table.tt .empty-cell{background:#fafaf7;cursor:pointer;min-width:100px;}
 table.tt .empty-cell:hover{background:#ece6d5;}
 table.tt .slot-cell{cursor:default;min-width:100px;padding:7px 9px;vertical-align:top;}
 .slot-grade{font-size:18px;font-weight:800;margin-bottom:3px;line-height:1.4;cursor:pointer;opacity:.9;}
-.slot-name{display:inline-block;font-size:20px;font-weight:700;line-height:1.8;cursor:pointer;padding:1px 6px;border-radius:4px;}
+.slot-name{display:inline-block;font-size:16px;font-weight:700;line-height:1.8;cursor:pointer;padding:1px 6px;border-radius:4px;}
 .leg-badge{border-radius:5px;padding:2px 9px;font-size:11px;font-weight:700;}
 table.tt tbody tr:hover td.time-col{background:#ece6d5;color:#a3791f;font-weight:900;}
 table.stat{width:100%;border-collapse:collapse;font-size:12px;}
@@ -869,7 +869,7 @@ function renderTodayCard(){
         const effCat0=ps0.cat||slot.cat;
         const ak=slot.isMakeup?attKey("main",n):attKey(slot.isSpecial?"special":"main",n,effCat0);
         const v=(attStore[ak]||{})[dateKey];
-        const chip=Bt({style:{borderRadius:"7px",padding:"5px 12px",fontSize:"17px",fontWeight:"800",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
+        const chip=Bt({style:{borderRadius:"7px",padding:"5px 12px",fontSize:"14px",fontWeight:"800",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
           onClick:()=>{
             if(!attStore[ak])attStore[ak]={};
             const cur=attStore[ak][dateKey];
