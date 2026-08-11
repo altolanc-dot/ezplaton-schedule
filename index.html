@@ -850,19 +850,18 @@ function renderTodayCard(){
       const catsArr=slot.isSpecial?CATS2:CATS;
       const ccMap=slot.isSpecial?CC2:CC;
       const cc=slot.isMakeup?{t:"#c07020",bg:"#fce4c8",bd:"#f0b070",li:"#fff2e0"}:ccMap[slot.cat];
-      const hasDesc=slot.isMakeup&&slot.desc;
-      const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:hasDesc?"10px 10px 0 0":"10px",padding:"8px 12px"}});
-      row.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
+      const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:"10px",padding:"8px 12px"}});
+      row.appendChild(Sp({style:{fontWeight:"900",fontSize:"14px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
       const labelText=slot.isMakeup?("🔁 보강"+(slot.grade?" · "+slot.grade:"")):((slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||""));
-      row.appendChild(Sp({style:{fontSize:"11px",color:cc.t,fontWeight:"700",whiteSpace:"nowrap"}},[labelText]));
+      row.appendChild(Sp({style:{fontSize:"13px",color:cc.t,fontWeight:"800",whiteSpace:"nowrap"}},[labelText]));
       const attStore=slot.isSpecial?S.att2:S.att;
-      const chips=D({style:{display:"flex",gap:"6px",flexWrap:"wrap"}});
+      const chips=D({style:{display:"flex",gap:"6px",flexWrap:"wrap",alignItems:"center"}});
       slot.names.forEach(n=>{
         const ps0=(slot.perStudent&&slot.perStudent[n])||{};
         const effCat0=ps0.cat||slot.cat;
         const ak=slot.isMakeup?attKey("main",n):attKey(slot.isSpecial?"special":"main",n,effCat0);
         const v=(attStore[ak]||{})[dateKey];
-        const chip=Bt({style:{borderRadius:"7px",padding:"4px 10px",fontSize:"12px",fontWeight:"700",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
+        const chip=Bt({style:{borderRadius:"7px",padding:"5px 12px",fontSize:"13px",fontWeight:"800",border:`1.5px solid ${v==="O"?"#90d4ac":v==="X"?"#f0a8a8":v==="D"?"#e8cc88":cc.bd}`,background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":"#fff",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":TM},
           onClick:()=>{
             if(!attStore[ak])attStore[ak]={};
             const cur=attStore[ak][dateKey];
@@ -874,16 +873,10 @@ function renderTodayCard(){
           }},[n+(v?" "+(v==="O"?"✓":v==="X"?"✗":"↩"):"")]);
         chips.appendChild(chip);
       });
+      if(slot.isMakeup&&slot.desc)chips.appendChild(Sp({style:{fontSize:"13px",fontWeight:"700",color:"#a3791f"}},["📝 "+slot.desc]));
       if(slot.isMakeup)chips.appendChild(Bt({style:{border:"none",background:"none",color:"#c07020",fontSize:"11px",cursor:"pointer",textDecoration:"underline"},onClick:()=>openMakeupModal(dateKey,slot.id)},["편집"]));
       row.appendChild(chips);
-      if(slot.isMakeup&&slot.desc){
-        const wrap=D({});
-        wrap.appendChild(row);
-        wrap.appendChild(D({style:{fontSize:"11px",color:"#a3791f",background:cc.li,border:`1px solid ${cc.bd}`,borderTop:"none",borderRadius:"0 0 10px 10px",padding:"6px 12px",marginTop:"-1px",whiteSpace:"pre-wrap"}},["📝 "+slot.desc]));
-        body.appendChild(wrap);
-      } else {
-        body.appendChild(row);
-      }
+      body.appendChild(row);
     });
     body.appendChild(D({style:{fontSize:"10px",color:"#666"}},["※ 학생이름을 클릭하면 출결등록 가능합니다. (출석(O)→결석(X)→보강(D)→해제)"]));
   }
