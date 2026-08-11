@@ -309,6 +309,7 @@ let S={
   search:"",
   sched:{},
   calMonth:toYM(new Date()),
+  todayCardOffset:0, // "오늘 수업" 카드에서 며칠 전/후를 보고 있는지 (0=오늘)
 };
 let idC=203; const nid=()=>`s${++idC}`;
 let idC2=0; const nid2=()=>`t${++idC2}`;
@@ -381,7 +382,7 @@ function snapshotRevenue(){
   if(!S.revHistory)S.revHistory={};
   const rows=calcStudentsPerSlot();
   const total=rows.reduce((a,r)=>a+(r.free?0:r.fee),0);
-  const todayKey=new Date().toISOString().split("T")[0];
+  const todayKey=toISODate(new Date());
   // 가장 최근 스냅샷 값과 비교해서 달라졌을 때만 저장
   const histKeys=Object.keys(S.revHistory).sort();
   const lastVal=histKeys.length?S.revHistory[histKeys[histKeys.length-1]]:null;
@@ -392,14 +393,14 @@ function snapshotRevenue(){
 function calcDailyRevenue(){
   if(!S.revHistory)S.revHistory={};
   const now=new Date();
-  const todayKey=now.toISOString().split("T")[0];
+  const todayKey=toISODate(now);
   snapshotRevenue();
   const start=new Date(now);start.setMonth(start.getMonth()-6);start.setDate(1);
   const end=new Date(now);end.setMonth(end.getMonth()+6);end.setDate(1);end.setMonth(end.getMonth()+1);end.setDate(0);
   const result=[];
   let lastVal=null;
   for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
-    const dk=d.toISOString().split("T")[0];
+    const dk=toISODate(d);
     const label=(d.getMonth()+1)+"/"+d.getDate();
     if(dk>todayKey){result.push({date:dk,label,total:null,isSnap:false});continue;}
     const isSnap=S.revHistory[dk]!==undefined;
@@ -498,7 +499,7 @@ function renderScheduleCalendar(){
   card.appendChild(head);
 
   const body=D({style:{display:"flex",gap:"14px",padding:"12px 16px",flexWrap:"wrap"}});
-  const todayKey=new Date().toISOString().split("T")[0];
+  const todayKey=toISODate(new Date());
   const selDate=S.selDate||todayKey;
 
   // ── 좌: 달력 ──
@@ -795,10 +796,11 @@ function calcCategoryHours(src="main"){
 }
 
 // ── 오늘 수업 / 검색 ───────────────────────────────────────
-function getTodayInfo(){
+function getTodayInfo(offsetDays){
   const today=new Date();
+  if(offsetDays)today.setDate(today.getDate()+offsetDays);
   const idx=today.getDay()===0?6:today.getDay()-1;
-  return{dayName:DAYS[idx],dateKey:today.toISOString().split("T")[0],today};
+  return{dayName:DAYS[idx],dateKey:toISODate(today),today};
 }
 // 특강 기간(7/22~8/19) 중 오늘이 속한 회차 반환 (1회차:7/22~8/04, 2회차:8/05~8/19), 기간 밖이면 null
 function getActiveSpecialRound(today){
@@ -809,7 +811,9 @@ function getActiveSpecialRound(today){
   return t<=mid?"1":"2";
 }
 function renderTodayCard(){
-  const{dayName,dateKey,today}=getTodayInfo();
+  const offset=S.todayCardOffset||0;
+  const{dayName,dateKey,today}=getTodayInfo(offset);
+  const isToday=offset===0;
   const mainSlots=S.sch.filter(s=>s.day===dayName&&s.names&&s.names.length).map(s=>({...s,isSpecial:false,isMakeup:false}));
   const activeRound=getActiveSpecialRound(today);
   let specialSlots=[];
@@ -819,16 +823,23 @@ function renderTodayCard(){
       return names.length?{...s,names,isSpecial:true,isMakeup:false}:null;
     }).filter(Boolean);
   }
-  // 오늘 날짜로 예약된 보강(정규 시간표와 무관하게 특정 날짜에만 추가된 수업)
+  // 해당 날짜로 예약된 보강(정규 시간표와 무관하게 특정 날짜에만 추가된 수업)
   const makeupSlots=S.makeup.filter(mk=>mk.date===dateKey).map(mk=>({id:mk.id,time:mk.time,grade:mk.grade,names:mk.names,isSpecial:false,isMakeup:true}));
   const slots=[...mainSlots,...specialSlots,...makeupSlots].sort((a,b)=>AK.indexOf(a.time)-AK.indexOf(b.time));
   const card=D({className:"card"});
   const head=D({className:"card-head"});
-  head.appendChild(Sp({className:"card-title"},["📌 오늘 수업 ("+dayName+") · "+(today.getMonth()+1)+"월 "+today.getDate()+"일"+(activeRound?" · 🏖 특강 "+ROUND_MAP[activeRound].short+" 기간":"")]));
+  const headLeft=D({style:{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}});
+  headLeft.appendChild(Sp({className:"card-title"},["📌 "+(isToday?"오늘 수업":"수업")+" ("+dayName+") · "+(today.getMonth()+1)+"월 "+today.getDate()+"일"+(isToday?"":"")+(activeRound?" · 🏖 특강 "+ROUND_MAP[activeRound].short+" 기간":"")]));
+  head.appendChild(headLeft);
+  const navWrap=D({className:"no-print",style:{display:"flex",alignItems:"center",gap:"4px"}});
+  navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"이전 날",onClick:()=>{S.todayCardOffset=offset-1;render();}},["◀"]));
+  if(!isToday)navWrap.appendChild(Bt({style:{fontSize:"11px",color:GOLD,background:"#f5edd8",border:`1px solid ${BORDER}`,borderRadius:"7px",padding:"5px 10px",cursor:"pointer",fontWeight:"700"},onClick:()=>{S.todayCardOffset=0;render();}},["오늘"]));
+  navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"다음 날",onClick:()=>{S.todayCardOffset=offset+1;render();}},["▶"]));
+  head.appendChild(navWrap);
   card.appendChild(head);
   const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"8px"}});
   if(!slots.length){
-    body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},["오늘은 예정된 수업이 없습니다."]));
+    body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},[(isToday?"오늘은":dayName+"요일엔")+" 예정된 수업이 없습니다."]));
   } else {
     slots.forEach(slot=>{
       const catsArr=slot.isSpecial?CATS2:CATS;
@@ -1440,7 +1451,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
           pi.addEventListener("input",e=>{ms.payBaseDate=e.target.value;build();});
           pr.appendChild(pi);
           pr.appendChild(Bt({style:{fontSize:"11px",color:GOLD,background:"#f5edd8",border:`1px solid ${BORDER}`,borderRadius:"7px",padding:"7px 10px",cursor:"pointer",whiteSpace:"nowrap"},
-            onClick:()=>{ms.payBaseDate=new Date().toISOString().split("T")[0];build();}},["오늘부터"]));
+            onClick:()=>{ms.payBaseDate=toISODate(new Date());build();}},["오늘부터"]));
           if(ms.payBaseDate)pr.appendChild(Bt({style:{fontSize:"11px",color:TS,background:"none",border:"none",cursor:"pointer",textDecoration:"underline"},
             onClick:()=>{ms.payBaseDate="";build();}},["해제"]));
           left.appendChild(pr);
@@ -1580,7 +1591,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
       const addBox=D({style:{background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"12px",padding:"14px",marginBottom:"16px"}});
       addBox.appendChild(D({style:{fontWeight:"700",fontSize:"12px",color:GOLD,marginBottom:"10px"}},["+ 새 메모 추가"]));
       const dr=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"8px"}});
-      const dInp=Inp({type:"date",className:"field-input",value:new Date().toISOString().split("T")[0]});
+      const dInp=Inp({type:"date",className:"field-input",value:toISODate(new Date())});
       const sInp=Inp({type:"number",className:"field-input",placeholder:"회차 (선택)",min:"1"});
       dr.appendChild(D({},[fLbl("날짜"),dInp]));dr.appendChild(D({},[fLbl("회차"),sInp]));addBox.appendChild(dr);
       const cta=Ta({className:"field-input",rows:"3",placeholder:"수업 내용, 진도, 특이사항..."});addBox.appendChild(cta);
@@ -2106,7 +2117,7 @@ function buildScheduleCard(src){
             const nMeta=store.meta[n]||{};
             const nPending=!nMeta.free&&nMeta.active===false;
             const nl=Sp({className:"slot-name",title:(store.cats.find(c=>c.key===effCat)?.label||"")+(nPending?" · 예정(교습비 미반영)":""),style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),fontStyle:nPending?"italic":"normal",opacity:nPending?0.55:1,borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
-            const todayAtt=(store.att[attKey(src,n,effCat)]||{})[new Date().toISOString().split("T")[0]];
+            const todayAtt=(store.att[attKey(src,n,effCat)]||{})[toISODate(new Date())];
             if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":"↩"]));
             nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade,src);});
             nl.addEventListener("mouseenter",()=>{if(!isMatch)nl.style.background=effCC.bd;});
