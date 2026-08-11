@@ -469,6 +469,10 @@ function openMakeupModal(dateKey,editId){
   modal.appendChild(fLbl("학생 이름 (한 줄에 한 명)"));
   const namesTa=Ta({className:"field-input",rows:"3",placeholder:"김철수\n이영희",style:{marginBottom:"14px"}},[editing?editing.names.join("\n"):""]);
   modal.appendChild(namesTa);
+  modal.appendChild(fLbl("설명(선택)"));
+  const descTa=Ta({className:"field-input",rows:"2",placeholder:"보강 사유, 진도, 참고사항 등..."},[editing?(editing.desc||""):""]);
+  modal.appendChild(descTa);
+  modal.appendChild(D({style:{fontSize:"10px",color:"#ccc",marginTop:"4px",marginBottom:"14px"}},["오늘 수업 카드와 달력에 함께 표시됩니다"]));
   const br=D({className:"modal-row"});
   if(editing){
     br.appendChild(Bt({className:"btn btn-ghost",style:{color:"#d04040"},onClick:()=>{
@@ -479,7 +483,7 @@ function openMakeupModal(dateKey,editId){
   br.appendChild(Bt({className:"btn btn-primary",onClick:()=>{
     const names=namesTa.value.split("\n").map(n=>n.trim()).filter(Boolean);
     if(!names.length){ov.remove();return;}
-    const entry={id:editing?editing.id:nid3(),date:dateKey,time:timeSel.value,grade:gradeInp.value.trim(),names};
+    const entry={id:editing?editing.id:nid3(),date:dateKey,time:timeSel.value,grade:gradeInp.value.trim(),names,desc:descTa.value.trim()};
     if(editing)S.makeup=S.makeup.map(m=>m.id===editId?entry:m);
     else S.makeup=[...S.makeup,entry];
     ov.remove();render();
@@ -562,6 +566,7 @@ function renderScheduleCalendar(){
       const row=D({style:{fontSize:"12px",color:"#8a6419",background:"#fff3d6",border:"1px solid #e8b448",borderRadius:"8px",padding:"7px 10px",cursor:"pointer"},onClick:()=>openMakeupModal(selDate,mk.id)});
       row.appendChild(Sp({style:{fontWeight:"800"}},[mk.time.replace(/[AP]M /,"")+(mk.grade?" · "+mk.grade:"")]));
       row.appendChild(D({style:{marginTop:"2px",color:"#8a6419"}},[mk.names.join(", ")]));
+      if(mk.desc)row.appendChild(D({style:{marginTop:"3px",fontSize:"11px",color:"#a3791f",whiteSpace:"pre-wrap"}},[mk.desc]));
       mkWrap.appendChild(row);
     });
     memoCol.appendChild(mkWrap);
@@ -824,7 +829,7 @@ function renderTodayCard(){
     }).filter(Boolean);
   }
   // 해당 날짜로 예약된 보강(정규 시간표와 무관하게 특정 날짜에만 추가된 수업)
-  const makeupSlots=S.makeup.filter(mk=>mk.date===dateKey).map(mk=>({id:mk.id,time:mk.time,grade:mk.grade,names:mk.names,isSpecial:false,isMakeup:true}));
+  const makeupSlots=S.makeup.filter(mk=>mk.date===dateKey).map(mk=>({id:mk.id,time:mk.time,grade:mk.grade,names:mk.names,desc:mk.desc,isSpecial:false,isMakeup:true}));
   const slots=[...mainSlots,...specialSlots,...makeupSlots].sort((a,b)=>AK.indexOf(a.time)-AK.indexOf(b.time));
   const card=D({className:"card"});
   const head=D({className:"card-head"});
@@ -845,7 +850,8 @@ function renderTodayCard(){
       const catsArr=slot.isSpecial?CATS2:CATS;
       const ccMap=slot.isSpecial?CC2:CC;
       const cc=slot.isMakeup?{t:"#c07020",bg:"#fce4c8",bd:"#f0b070",li:"#fff2e0"}:ccMap[slot.cat];
-      const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:"10px",padding:"8px 12px"}});
+      const hasDesc=slot.isMakeup&&slot.desc;
+      const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:hasDesc?"10px 10px 0 0":"10px",padding:"8px 12px"}});
       row.appendChild(Sp({style:{fontWeight:"800",fontSize:"12px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
       const labelText=slot.isMakeup?("🔁 보강"+(slot.grade?" · "+slot.grade:"")):((slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||""));
       row.appendChild(Sp({style:{fontSize:"11px",color:cc.t,fontWeight:"700",whiteSpace:"nowrap"}},[labelText]));
@@ -870,7 +876,14 @@ function renderTodayCard(){
       });
       if(slot.isMakeup)chips.appendChild(Bt({style:{border:"none",background:"none",color:"#c07020",fontSize:"11px",cursor:"pointer",textDecoration:"underline"},onClick:()=>openMakeupModal(dateKey,slot.id)},["편집"]));
       row.appendChild(chips);
-      body.appendChild(row);
+      if(slot.isMakeup&&slot.desc){
+        const wrap=D({});
+        wrap.appendChild(row);
+        wrap.appendChild(D({style:{fontSize:"11px",color:"#a3791f",background:cc.li,border:`1px solid ${cc.bd}`,borderTop:"none",borderRadius:"0 0 10px 10px",padding:"6px 12px",marginTop:"-1px",whiteSpace:"pre-wrap"}},["📝 "+slot.desc]));
+        body.appendChild(wrap);
+      } else {
+        body.appendChild(row);
+      }
     });
     body.appendChild(D({style:{fontSize:"10px",color:"#666"}},["※ 학생이름을 클릭하면 출결등록 가능합니다. (출석(O)→결석(X)→보강(D)→해제)"]));
   }
