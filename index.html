@@ -74,12 +74,12 @@ main{padding:20px 28px;display:flex;flex-direction:column;gap:18px;}
 table.tt{border-collapse:separate;border-spacing:0;min-width:700px;width:100%;}
 table.tt th,table.tt td{border:0.5px solid #e5e0d3;background-clip:padding-box;}
 table.tt thead th{background:#1b2540;font-weight:800;font-size:13px;letter-spacing:2px;padding:10px;text-align:center;color:#cfd6ea;}
-table.tt .time-col{background:#f5f3ee;text-align:right;padding:0 8px;font-size:12px;font-weight:800;color:#8a8272;white-space:nowrap;vertical-align:middle;width:46px;}
+table.tt .time-col{background:#f5f3ee;text-align:right;padding:0 8px;font-size:24px;font-weight:800;color:#8a8272;white-space:nowrap;vertical-align:middle;width:78px;}
 table.tt .ap-col{text-align:center;font-weight:900;font-size:10px;writing-mode:vertical-rl;letter-spacing:4px;padding:3px 2px;width:18px;}
 table.tt .empty-cell{background:#fafaf7;cursor:pointer;min-width:100px;}
 table.tt .empty-cell:hover{background:#ece6d5;}
 table.tt .slot-cell{cursor:default;min-width:100px;padding:7px 9px;vertical-align:top;}
-.slot-grade{font-size:11px;font-weight:800;margin-bottom:3px;line-height:1.4;cursor:pointer;opacity:.9;}
+.slot-grade{font-size:22px;font-weight:800;margin-bottom:3px;line-height:1.4;cursor:pointer;opacity:.9;}
 .slot-name{display:inline-block;font-size:12px;font-weight:600;line-height:2;cursor:pointer;padding:0 4px;border-radius:4px;}
 .leg-badge{border-radius:5px;padding:2px 9px;font-size:11px;font-weight:700;}
 table.tt tbody tr:hover td.time-col{background:#ece6d5;color:#a3791f;font-weight:900;}
@@ -364,6 +364,9 @@ function syncIdCounters(){
   let maxSpecial=0;
   S.sch2.forEach(s=>{const m=/^t(\d+)$/.exec(s.id||"");if(m)maxSpecial=Math.max(maxSpecial,parseInt(m[1],10));});
   idC2=maxSpecial;
+  let maxMakeup=0;
+  (S.makeup||[]).forEach(mk=>{const m=/^mk(\d+)$/.exec(mk.id||"");if(m)maxMakeup=Math.max(maxMakeup,parseInt(m[1],10));});
+  idC3=maxMakeup;
 }
 function repairDuplicateIds(){
   const seen=new Set();
@@ -375,6 +378,11 @@ function repairDuplicateIds(){
   S.sch2=S.sch2.map(s=>{
     if(seen2.has(s.id))return{...s,id:nid2()};
     seen2.add(s.id);return s;
+  });
+  const seen3=new Set();
+  S.makeup=(S.makeup||[]).map(mk=>{
+    if(!mk.id||seen3.has(mk.id))return{...mk,id:nid3()};
+    seen3.add(mk.id);return mk;
   });
 }
 // ── 일별 교습비 추이(히스토리 누적) ─────────────────────────
@@ -2099,7 +2107,7 @@ function buildScheduleCard(src){
   TG.forEach(grp=>{
     grp.keys.forEach((tk,ti)=>{
       const si=SL.find(s=>s.key===tk);const isHour=si?.hr;
-      const tr=h("tr",{style:{height:isHour?"44px":"30px"}});
+      const tr=h("tr",{style:{height:isHour?"72px":"50px"}});
       if(ti===0){tr.appendChild(h("td",{rowspan:String(grp.keys.length),className:"ap-col",style:{background:grp.lbl==="AM"?"#eef4ff":"#fff5eb",color:grp.lbl==="AM"?"#5580b8":"#c07030"}},[grp.lbl]));}
       tr.appendChild(h("td",{className:"time-col"},[isHour?tk.replace(/[AP]M /,""):" "]));
       DAYS.forEach(d=>{
