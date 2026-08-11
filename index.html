@@ -309,7 +309,7 @@ let S={
   search:"",
   sched:{},
   calMonth:toYM(new Date()),
-  todayCardOffset:0, // "오늘 수업" 카드에서 며칠 전/후를 보고 있는지 (0=오늘)
+  viewDate:toISODate(new Date()), // "오늘 수업" 카드와 "월별 주요일정" 달력이 공유하는 현재 보고 있는 날짜
 };
 let idC=203; const nid=()=>`s${++idC}`;
 let idC2=0; const nid2=()=>`t${++idC2}`;
@@ -512,7 +512,7 @@ function renderScheduleCalendar(){
 
   const body=D({style:{display:"flex",gap:"14px",padding:"12px 16px",flexWrap:"wrap"}});
   const todayKey=toISODate(new Date());
-  const selDate=S.selDate||todayKey;
+  const selDate=S.viewDate||todayKey;
 
   // ── 좌: 달력 ──
   const calCol=D({style:{flex:"1 1 220px",minWidth:"200px"}});
@@ -541,7 +541,7 @@ function renderScheduleCalendar(){
     if(hasMemo)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:GOLD}}));
     if(hasMakeup)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:"#e08020"}}));
     if(hasMemo||hasMakeup)cell.appendChild(dotWrap);
-    cell.addEventListener("click",()=>{S.selDate=dk;render();});
+    cell.addEventListener("click",()=>{S.viewDate=dk;render();});
     cell.addEventListener("mouseenter",()=>{if(!isSel)cell.style.background="#f0ece0";});
     cell.addEventListener("mouseleave",()=>{cell.style.background=isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent";});
     row.appendChild(cell);col++;
@@ -824,9 +824,8 @@ function getActiveSpecialRound(today){
   return t<=mid?"1":"2";
 }
 function renderTodayCard(){
-  const offset=S.todayCardOffset||0;
-  const{dayName,dateKey,today}=getTodayInfo(offset);
-  const isToday=offset===0;
+  const{dayName,dateKey,today}=getDateInfoFromKey(S.viewDate);
+  const isToday=S.viewDate===toISODate(new Date());
   const mainSlots=S.sch.filter(s=>s.day===dayName&&s.names&&s.names.length).map(s=>({...s,isSpecial:false,isMakeup:false}));
   const activeRound=getActiveSpecialRound(today);
   let specialSlots=[];
@@ -845,9 +844,9 @@ function renderTodayCard(){
   headLeft.appendChild(Sp({className:"card-title"},["📌 "+(isToday?"오늘 수업":"수업")+" ("+dayName+") · "+(today.getMonth()+1)+"월 "+today.getDate()+"일"+(isToday?"":"")+(activeRound?" · 🏖 특강 "+ROUND_MAP[activeRound].short+" 기간":"")]));
   head.appendChild(headLeft);
   const navWrap=D({className:"no-print",style:{display:"flex",alignItems:"center",gap:"4px"}});
-  navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"이전 날",onClick:()=>{S.todayCardOffset=offset-1;render();}},["◀"]));
-  if(!isToday)navWrap.appendChild(Bt({style:{fontSize:"11px",color:GOLD,background:"#f5edd8",border:`1px solid ${BORDER}`,borderRadius:"7px",padding:"5px 10px",cursor:"pointer",fontWeight:"700"},onClick:()=>{S.todayCardOffset=0;render();}},["오늘"]));
-  navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"다음 날",onClick:()=>{S.todayCardOffset=offset+1;render();}},["▶"]));
+  navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"이전 날",onClick:()=>{S.viewDate=addDaysToKey(S.viewDate,-1);S.calMonth=S.viewDate.slice(0,7);render();}},["◀"]));
+  if(!isToday)navWrap.appendChild(Bt({style:{fontSize:"11px",color:GOLD,background:"#f5edd8",border:`1px solid ${BORDER}`,borderRadius:"7px",padding:"5px 10px",cursor:"pointer",fontWeight:"700"},onClick:()=>{S.viewDate=toISODate(new Date());S.calMonth=S.viewDate.slice(0,7);render();}},["오늘"]));
+  navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"다음 날",onClick:()=>{S.viewDate=addDaysToKey(S.viewDate,1);S.calMonth=S.viewDate.slice(0,7);render();}},["▶"]));
   head.appendChild(navWrap);
   card.appendChild(head);
   const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"8px"}});
@@ -990,6 +989,20 @@ function getDayOfWeekKR(dateStr){
 const AUTO_BASE_CATS=["초등_플라톤","중등_플라톤"];
 function toISODate(d){
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+// 날짜키(YYYY-MM-DD)에 n일을 더한 새 날짜키 반환 (음수도 가능)
+function addDaysToKey(dateKey,n){
+  const[y,m,d]=dateKey.split("-").map(Number);
+  const dt=new Date(y,m-1,d);
+  dt.setDate(dt.getDate()+n);
+  return toISODate(dt);
+}
+// 날짜키(YYYY-MM-DD)를 dayName/dateObj로 변환
+function getDateInfoFromKey(dateKey){
+  const[y,m,d]=dateKey.split("-").map(Number);
+  const dateObj=new Date(y,m-1,d);
+  const idx=dateObj.getDay()===0?6:dateObj.getDay()-1;
+  return{dayName:DAYS[idx],dateKey,today:dateObj};
 }
 // 현재 결제주기(=이번 달력월) 범위: 1일 ~ 말일
 function getCurrentCycleMonthRange(){
