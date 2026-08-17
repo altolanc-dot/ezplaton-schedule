@@ -2448,42 +2448,16 @@ function renderTT(){
 
 
 // ── 탭: 출결 ────────────────────────────────────────────
-function renderAtt(){
-  const src=S.attView||"main";
+// 분류 목록(catKeys)에 해당하는 학생들의 출결 표(그리드+학생행)를 만든다.
+// gradeSplitCats에 포함된 분류는 학년별로 소그룹핑되고, 나머지는 분류 하나로 묶인다.
+function buildAttendanceTableEl(catKeys,src,gradeSplitCats){
   const store=getStore(src);
-  const stList=src==="special"?calcSpecialEnrollments():calcStudentsByCategory("main");
+  const catsDef=src==="special"?CATS2:CATS;
+  const stList=(src==="special"?calcSpecialEnrollments():calcStudentsByCategory("main")).filter(s=>catKeys.includes(s.cat));
   if(src==="special")stList.sort((a,b)=>(a.round||"1").localeCompare(b.round||"1"));
-  const wrap=D({});
-  if(src==="main"){
-    const hasPayingStudents=calcStudents("main").some(s=>!s.free);
-    if(hasPayingStudents)wrap.appendChild(renderPaymentDueCard());
-  } else {
-    if(calcSpecialEnrollments().length)wrap.appendChild(renderSpecialPaymentDueCard());
-  }
-  const attCard=D({className:"card"});
-  const cardHead=D({className:"card-head"});
-  const headLeft=D({style:{display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}});
-  headLeft.appendChild(Sp({className:"card-title"},[(src==="special"?"🏖 특강 출결 현황 — ":"📅 출결 현황 — ")+ymLabel(S.attMonth)]));
-  const attSwitch=D({className:"no-print",style:{display:"flex",gap:"4px",background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"3px"}});
-  [{v:"main",l:"정규"},{v:"special",l:"🏖 특강"}].forEach(o=>{
-    const sel=src===o.v;
-    attSwitch.appendChild(Bt({style:{padding:"5px 12px",borderRadius:"7px",fontSize:"11px",fontWeight:sel?"800":"500",border:"none",background:sel?GOLD:"transparent",color:sel?"#fff":TS,cursor:"pointer"},
-      onClick:()=>{S.attView=o.v;render();}},[o.l]));
-  });
-  headLeft.appendChild(attSwitch);
-  cardHead.appendChild(headLeft);
-  const mnav=D({className:"month-nav"});
-  mnav.appendChild(Bt({style:{width:"30px",height:"30px",borderRadius:"8px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"14px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,-1);render();}},["◀"]));
-  mnav.appendChild(Sp({className:"month-lbl"},[ymLabel(S.attMonth)]));
-  mnav.appendChild(Bt({style:{width:"30px",height:"30px",borderRadius:"8px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"14px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,1);render();}},["▶"]));
-  cardHead.appendChild(mnav);attCard.appendChild(cardHead);
-
   if(!stList.length){
-    attCard.appendChild(D({style:{color:"#ccc",padding:"24px",textAlign:"center",fontSize:"12px"}},[src==="special"?"등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요.":"등록된 학생이 없습니다."]));
-    wrap.appendChild(attCard);
-    return wrap;
+    return D({style:{color:"#ccc",padding:"24px",textAlign:"center",fontSize:"12px"}},[src==="special"?"등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요.":"등록된 학생이 없습니다."]);
   }
-
   const tblWrap=D({style:{overflowX:"auto"}});
   const tbl=h("table",{className:"att-tbl"});
   const thead=h("thead",{});const htr=h("tr",{});
@@ -2507,8 +2481,6 @@ function renderAtt(){
   const tbody=h("tbody",{});
   const colCount=days+3;
   let rowIndex=0;
-  // 정규(main)는 초등/중등 플라톤만 학년별 소그룹으로 나누고, 그 외 분류는 단일 그룹으로 표시한다.
-  const GRADE_SPLIT_CATS=["초등_플라톤","중등_플라톤"];
   function buildGroupHeader(label,cc,count){
     const hr=h("tr",{});
     hr.appendChild(h("td",{colspan:String(colCount),style:{background:cc.bg,color:cc.t,fontWeight:"800",fontSize:"12px",padding:"7px 14px",textAlign:"left",borderTop:`2px solid ${cc.bd}`}},[label+" ("+count+"명)"]));
@@ -2546,11 +2518,11 @@ function renderAtt(){
     sumTd.appendChild(Sp({style:{color:"#e08020"}},[Dv+"보"]));
     tr.appendChild(sumTd);tbody.appendChild(tr);
   }
-  store.cats.forEach(c=>{
+  catsDef.filter(c=>catKeys.includes(c.key)).forEach(c=>{
     const inCat=stList.filter(s=>s.cat===c.key);
     if(!inCat.length)return;
     const cc=store.cc[c.key];
-    if(src==="main"&&GRADE_SPLIT_CATS.includes(c.key)){
+    if(gradeSplitCats.has(c.key)){
       const byGrade={};
       inCat.forEach(s=>{
         const n=parseGradeNum(s.grade);
@@ -2570,13 +2542,115 @@ function renderAtt(){
       list.forEach(buildStudentRow);
     }
   });
-  tbl.appendChild(tbody);tblWrap.appendChild(tbl);attCard.appendChild(tblWrap);
+  tbl.appendChild(tbody);tblWrap.appendChild(tbl);
+  return tblWrap;
+}
+function buildAttLegend(){
   const leg=D({style:{display:"flex",gap:"12px",padding:"12px 20px",borderTop:"1px solid #e5e0d3",fontSize:"11px",color:TS}});
   [{v:"O",c:"#3a9a5c",bg:"#dcf2e8",t:"출석"},{v:"X",c:"#d04040",bg:"#fce4e4",t:"결석"},{v:"D",c:"#e08020",bg:"#fef3de",t:"보강"}].forEach(item=>{
     leg.appendChild(D({style:{display:"flex",alignItems:"center",gap:"4px"}},[Sp({style:{fontWeight:"800",color:item.c,background:item.bg,borderRadius:"4px",padding:"1px 7px"}},[item.v]),Sp({},[item.t])]));
   });
   leg.appendChild(Sp({style:{color:"#ccc"}},["  셀 클릭: ·→O→X→D→삭제"]));
-  attCard.appendChild(leg);wrap.appendChild(attCard);
+  return leg;
+}
+// 이지국어/이지수능/개인과외 그룹: 각 그룹의 이번달 출결현황+예상금액을 계산
+const ATT_GROUPS=[
+  {key:"easy_korean",label:"이지국어",icon:"📘",cats:["초등_이지","중등_이지"]},
+  {key:"easy_suneung",label:"이지수능",icon:"📝",cats:["중등_이지수능","고등_이지수능"]},
+  {key:"private",label:"개인과외",icon:"🎯",cats:["고등_개인"]},
+];
+function getAttGroupSummary(catKeys){
+  const store=getStore("main");
+  const rows=calcStudentsByCategory("main").filter(s=>catKeys.includes(s.cat));
+  const revenue=rows.filter(s=>!s.free).reduce((a,s)=>a+s.monthly,0);
+  const days=daysInMonth(S.attMonth);
+  let O=0,X=0,Dv=0;
+  rows.forEach(s=>{
+    const ak=attKey("main",s.name,s.cat);
+    const rec=store.att[ak]||{};
+    for(let d=1;d<=days;d++){
+      const v=rec[S.attMonth+"-"+String(d).padStart(2,"0")];
+      if(v==="O")O++;else if(v==="X")X++;else if(v==="D")Dv++;
+    }
+  });
+  return{count:rows.length,revenue,O,X,Dv};
+}
+function openAttGroupModal(group){
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(920);
+  const head=D({style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"8px",marginBottom:"14px"}});
+  head.appendChild(mkTitle(group.icon,group.label+" 출결 현황 — "+ymLabel(S.attMonth)));
+  const mnav=D({className:"month-nav"});
+  mnav.appendChild(Bt({style:{width:"28px",height:"28px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"13px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,-1);ov.remove();openAttGroupModal(group);}},["◀"]));
+  mnav.appendChild(Sp({className:"month-lbl",style:{fontSize:"12px"}},[ymLabel(S.attMonth)]));
+  mnav.appendChild(Bt({style:{width:"28px",height:"28px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"13px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,1);ov.remove();openAttGroupModal(group);}},["▶"]));
+  head.appendChild(mnav);
+  modal.appendChild(head);
+  modal.appendChild(buildAttendanceTableEl(group.cats,"main",new Set()));
+  modal.appendChild(buildAttLegend());
+  const br=D({className:"modal-row"});br.appendChild(Bt({className:"btn btn-primary",onClick:()=>ov.remove()},["닫기"]));
+  modal.appendChild(br);
+  ov.appendChild(modal);document.body.appendChild(ov);
+}
+function renderAttGroupCards(){
+  const row=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"10px"}});
+  ATT_GROUPS.forEach(group=>{
+    const sum=getAttGroupSummary(group.cats);
+    const card=D({style:{background:"#fff",border:`1px solid ${BORDER}`,borderRadius:"12px",padding:"12px 14px",cursor:"pointer",boxShadow:"0 2px 8px rgba(90,70,20,.06)"},onClick:()=>openAttGroupModal(group)});
+    const topRow=D({style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}});
+    topRow.appendChild(Sp({style:{fontWeight:"800",fontSize:"13px",color:TM}},[group.icon+" "+group.label]));
+    topRow.appendChild(Sp({style:{fontSize:"10px",color:GOLD,fontWeight:"700"}},[sum.count+"명 · 보기 ▸"]));
+    card.appendChild(topRow);
+    card.appendChild(D({style:{fontSize:"16px",fontWeight:"900",color:GOLD,marginBottom:"4px"}},[sum.revenue.toLocaleString()+"원"]));
+    const attRow=D({style:{fontSize:"11px",color:TS}});
+    attRow.appendChild(Sp({style:{color:"#3a9a5c",fontWeight:"700"}},[sum.O+"출 "]));
+    attRow.appendChild(Sp({style:{color:"#d04040",fontWeight:"700"}},[sum.X+"결 "]));
+    attRow.appendChild(Sp({style:{color:"#e08020",fontWeight:"700"}},[sum.Dv+"보"]));
+    attRow.appendChild(Sp({},[" · "+ymLabel(S.attMonth)+" 기준"]));
+    card.appendChild(attRow);
+    row.appendChild(card);
+  });
+  return row;
+}
+function renderAtt(){
+  const src=S.attView||"main";
+  const wrap=D({});
+  if(src==="main"){
+    const hasPayingStudents=calcStudents("main").some(s=>!s.free);
+    if(hasPayingStudents)wrap.appendChild(renderPaymentDueCard());
+  } else {
+    if(calcSpecialEnrollments().length)wrap.appendChild(renderSpecialPaymentDueCard());
+  }
+  const attCard=D({className:"card"});
+  const cardHead=D({className:"card-head"});
+  const headLeft=D({style:{display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}});
+  headLeft.appendChild(Sp({className:"card-title"},[(src==="special"?"🏖 특강 출결 현황 — ":"📅 출결 현황 (초등·중등 플라톤) — ")+ymLabel(S.attMonth)]));
+  const attSwitch=D({className:"no-print",style:{display:"flex",gap:"4px",background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"9px",padding:"3px"}});
+  [{v:"main",l:"정규"},{v:"special",l:"🏖 특강"}].forEach(o=>{
+    const sel=src===o.v;
+    attSwitch.appendChild(Bt({style:{padding:"5px 12px",borderRadius:"7px",fontSize:"11px",fontWeight:sel?"800":"500",border:"none",background:sel?GOLD:"transparent",color:sel?"#fff":TS,cursor:"pointer"},
+      onClick:()=>{S.attView=o.v;render();}},[o.l]));
+  });
+  headLeft.appendChild(attSwitch);
+  cardHead.appendChild(headLeft);
+  const mnav=D({className:"month-nav"});
+  mnav.appendChild(Bt({style:{width:"30px",height:"30px",borderRadius:"8px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"14px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,-1);render();}},["◀"]));
+  mnav.appendChild(Sp({className:"month-lbl"},[ymLabel(S.attMonth)]));
+  mnav.appendChild(Bt({style:{width:"30px",height:"30px",borderRadius:"8px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"14px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,1);render();}},["▶"]));
+  cardHead.appendChild(mnav);attCard.appendChild(cardHead);
+
+  if(src==="main"){
+    attCard.appendChild(buildAttendanceTableEl(["초등_플라톤","중등_플라톤"],"main",new Set(["초등_플라톤","중등_플라톤"])));
+  } else {
+    attCard.appendChild(buildAttendanceTableEl(CATS2.map(c=>c.key),"special",new Set()));
+  }
+  attCard.appendChild(buildAttLegend());
+  wrap.appendChild(attCard);
+
+  if(src==="main"){
+    const groupHead=D({style:{fontWeight:"800",fontSize:"13px",color:TM,margin:"4px 2px"}},["📂 분류별 보기 (클릭해서 출결·금액 확인)"]);
+    wrap.appendChild(groupHead);
+    wrap.appendChild(renderAttGroupCards());
+  }
   return wrap;
 }
 
