@@ -32,7 +32,7 @@ header::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:4p
 .logo-sub{color:#8892a8;font-size:11px;font-weight:600;letter-spacing:1px;}
 .ver-badge{font-size:10px;color:#b8872a;background:#fdf3de;border:1px solid #e8cc88;border-radius:4px;padding:1px 7px;font-weight:700;margin-left:6px;}
 .hdr-pill-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-.hdr-pill{display:inline-flex;align-items:center;gap:6px;height:24px;box-sizing:border-box;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:0 5px 0 11px;color:#e4e8f2;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s;}
+.hdr-pill{display:inline-flex;align-items:center;gap:6px;height:30px;box-sizing:border-box;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:0 5px 0 11px;color:#e4e8f2;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s;}
 .hdr-pill:hover{background:rgba(255,255,255,.09);}
 .hdr-pill .pv{border-radius:999px;padding:2px 8px;font-weight:900;font-size:10.5px;color:#fff;line-height:1;}
 .hdr-pill.blue{border-color:#3d6fd1;}
@@ -340,6 +340,7 @@ let S={
   view:"main",
   attMonth:toYM(new Date()),
   attGroup:"platon", // 출결 탭에서 선택된 분류(전체/플라톤/이지국어/이지수능/개인), 기본은 플라톤
+  hdrOtherOpen:false, // 헤더 "기타기능" 드롭다운 열림 여부
   saveStatus:"",
   loaded:false,
   search:"",
@@ -507,7 +508,7 @@ const lastLabelPlugin={
 };
 // ── 학원 주요일정 캘린더 ───────────────────────────────────
 function openScheduleModal(dateKey){
-  const ov=mkOv(()=>ov.remove());const modal=mkModal(380);
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(520);
   const existing=S.sched[dateKey]||"";
   modal.appendChild(mkTitle("📝",dateKey+" 일정 메모"));
   const ta=Ta({className:"field-input",rows:"5",placeholder:"오늘의 주요 학원 일정을 입력하세요..."},[existing]);
@@ -528,7 +529,7 @@ function openScheduleModal(dateKey){
 // ── 보강 예약 (특정 날짜에만 적용, 정규 시간표는 건드리지 않음) ──────
 function openMakeupModal(dateKey,editId){
   const editing=editId?S.makeup.find(m=>m.id===editId):null;
-  const ov=mkOv(()=>ov.remove());const modal=mkModal(380);
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(520);
   modal.appendChild(mkTitle("🔁",dateKey+" 보강 "+(editing?"편집":"추가")));
   modal.appendChild(fLbl("시간"));
   const timeSel=h("select",{className:"field-input",style:{marginBottom:"12px"}});
@@ -976,7 +977,7 @@ function renderTodayCard(){
 }
 function renderSearchBar(){
   const wrap=D({className:"no-print",style:{position:"relative"}});
-  const inp=Inp({className:"field-input",id:"searchInput",placeholder:"🔍 학생 이름 검색...",value:S.search,style:{maxWidth:"220px"}});
+  const inp=Inp({className:"field-input",id:"searchInput",placeholder:"🔍 학생 이름 검색...",value:S.search,style:{maxWidth:"220px",height:"30px",padding:"0 12px",boxSizing:"border-box"}});
   let isComposing=false,debTimer=null;
   const commit=e=>{
     const val=e.target.value;
@@ -1258,7 +1259,7 @@ function openCellModal(time,day,src="main"){
     ms.stInfos=isSpecial?syncSpecialSI(slot.cat,[]):slot.names.map(n=>buildOne(n,slot.cat));
   }
 
-  const ov=mkOv(close);const modal=mkModal(440);
+  const ov=mkOv(close);const modal=mkModal(520);
   function close(){ov.remove();}
       function confirm(){
     const names=isSpecial?ms.stInfos.map(si=>si.name):ms.nt.split("\n").map(n=>n.trim()).filter(Boolean);
@@ -1850,7 +1851,7 @@ function openLevelModal(level){
     agg[key].wc++;
   });
   const stList=Object.values(agg).filter(s=>getStudentLevel(s)===level);
-  const ov=mkOv(()=>ov.remove());const modal=mkModal(480);
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(500);
   modal.appendChild(mkTitle("👥",level+" 학생 현황 ("+uniqueCount+"명)"));
   if(!stList.length){
     modal.appendChild(D({style:{color:"#ccc",padding:"20px 0",textAlign:"center"}},["등록된 학생이 없습니다."]));
@@ -1922,7 +1923,7 @@ function openSpecialLevelModal(){
   const stList=calcSpecialEnrollments();
   const enrollCount=stList.length;
   const uniqueCount=new Set(stList.map(s=>s.name)).size;
-  const ov=mkOv(()=>ov.remove());const modal=mkModal(480);
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(500);
   modal.appendChild(mkTitle("🏖","특강 학생 현황 ("+enrollCount+"명)"));
   if(enrollCount!==uniqueCount)modal.appendChild(D({style:{fontSize:"11px",color:TS,marginTop:"-10px",marginBottom:"10px"}},["※ 과목이 다르면 같은 학생도 각각 집계됩니다 (실인원 "+uniqueCount+"명)"]));
   if(!stList.length){
@@ -1981,7 +1982,7 @@ function openSpecialLevelModal(){
 
 // ── 데이터 내보내기 모달 ─────────────────────────────────
 function openExportModal(){
-  const ov=mkOv(()=>ov.remove());const modal=mkModal(460);
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(500);
   modal.appendChild(mkTitle("📤","데이터 내보내기"));
   modal.appendChild(D({style:{fontSize:"12px",color:TS,marginBottom:"10px",lineHeight:"1.6"}},["아래 내용 전체를 복사(자동 선택되어 있으니 Ctrl+C)해서 Claude 채팅창에 붙여넣어 주세요."]));
   const ta=Ta({className:"field-input",rows:"10",style:{fontSize:"10px",fontFamily:"monospace",marginBottom:"10px"}},[JSON.stringify(packData())]);
@@ -1994,7 +1995,7 @@ function openExportModal(){
 
 // ── 기본 교습비 모달 ─────────────────────────────────────
 function openFeeModal(){
-  const ov=mkOv(()=>ov.remove());const modal=mkModal(360);
+  const ov=mkOv(()=>ov.remove());const modal=mkModal(500);
   let confirmingApply=false;
   function build(){
     modal.innerHTML="";
@@ -2572,12 +2573,25 @@ function renderTT(){
 // ── 탭: 출결 ────────────────────────────────────────────
 // 분류 목록(catKeys)에 해당하는 학생들의 출결 표(그리드+학생행)를 만든다.
 // gradeSplitCats에 포함된 분류는 학년별로 소그룹핑되고, 나머지는 분류 하나로 묶인다.
-function buildAttendanceTableEl(catKeys,src,gradeSplitCats){
+// 보강 예약(S.makeup)에는 있지만 정규 시간표(S.sch)엔 등록되지 않은 학생 목록
+// (예: 임시로 보강만 받는 학생 등) - 출결현황 "전체" 그룹에서 별도로 보여주기 위함
+function getMakeupOnlyStudents(){
+  const enrolledNames=new Set(calcStudentsByCategory("main").map(s=>s.name));
+  const seen=new Map();
+  S.makeup.forEach(mk=>{
+    (mk.names||[]).forEach(n=>{
+      if(!enrolledNames.has(n)&&!seen.has(n))seen.set(n,{name:n,grade:mk.grade||""});
+    });
+  });
+  return[...seen.values()];
+}
+function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
   const store=getStore(src);
   const catsDef=src==="special"?CATS2:CATS;
   const stList=(src==="special"?calcSpecialEnrollments():calcStudentsByCategory("main")).filter(s=>catKeys.includes(s.cat));
   if(src==="special")stList.sort((a,b)=>(a.round||"1").localeCompare(b.round||"1"));
-  if(!stList.length){
+  const makeupOnly=(includeMakeupOnly&&src==="main")?getMakeupOnlyStudents():[];
+  if(!stList.length&&!makeupOnly.length){
     return D({style:{color:"#ccc",padding:"24px",textAlign:"center",fontSize:"12px"}},[src==="special"?"등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요.":"등록된 학생이 없습니다."]);
   }
   const tblWrap=D({style:{overflowX:"auto"}});
@@ -2609,7 +2623,9 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats){
     tbody.appendChild(hr);
   }
   function buildStudentRow(st){
-    const cc=store.cc[st.cat];const ak=attKey(src,st.name,st.cat);const rec=src==="main"?getAttRecordForCat(st.name,st.cat):(store.att[ak]||{});
+    const cc=st.isMakeupOnly?{t:"#c07020",bg:"#fce4c8",bd:"#f0b070"}:store.cc[st.cat];
+    const ak=st.isMakeupOnly?st.name:attKey(src,st.name,st.cat);
+    const rec=st.isMakeupOnly?(S.att[st.name]||{}):(src==="main"?getAttRecordForCat(st.name,st.cat):(store.att[ak]||{}));
     const tr=h("tr",{style:{background:rowIndex%2===0?"#fff":"#f5f3ee"}});
     rowIndex++;
     const ntd=h("td",{style:{paddingLeft:"14px",fontWeight:"700",cursor:"pointer",color:cc.t}});
@@ -2617,7 +2633,7 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats){
     ntd.appendChild(Sp({style:{textDecoration:"underline dotted",textUnderlineOffset:"3px"}},[st.name]));
     if(src==="special"&&st.cat!=="요점정리특강")ntd.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[st.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"5px",fontWeight:"800"}},[ROUND_MAP[st.round||"1"].short]));
     tr.appendChild(ntd);
-    tr.appendChild(h("td",{style:{textAlign:"center"}},[Sp({style:{background:cc.bg,color:cc.t,borderRadius:"5px",padding:"1px 6px",fontSize:"10px",fontWeight:"700"}},[store.cats.find(c=>c.key===st.cat)?.sub||""])]));
+    tr.appendChild(h("td",{style:{textAlign:"center"}},[Sp({style:{background:cc.bg,color:cc.t,borderRadius:"5px",padding:"1px 6px",fontSize:"10px",fontWeight:"700"}},[st.isMakeupOnly?"보강":(store.cats.find(c=>c.key===st.cat)?.sub||"")])]));
     // 출/결/보강 횟수는 요일 셀보다 먼저 집계해서, 분류 바로 다음 칸에 배치한다
     let O=0,X=0,Dv=0;
     for(let d=1;d<=days;d++){
@@ -2669,6 +2685,11 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats){
       list.forEach(buildStudentRow);
     }
   });
+  if(makeupOnly.length){
+    const mcc={t:"#c07020",bg:"#fce4c8",bd:"#f0b070"};
+    buildGroupHeader("🔁 보강 전용 (정규 미등록)",mcc,makeupOnly.length);
+    makeupOnly.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(s=>buildStudentRow({...s,cat:null,isMakeupOnly:true}));
+  }
   tbl.appendChild(tbody);tblWrap.appendChild(tbl);
   return tblWrap;
 }
@@ -2682,7 +2703,7 @@ function buildAttLegend(){
 }
 // 이지국어/이지수능/개인과외 그룹: 각 그룹의 이번달 출결현황+예상금액을 계산
 const ATT_GROUPS=[
-  {key:"all",label:"전체 출결현황",icon:"📋",cats:CATS.map(c=>c.key),gradeSplit:false},
+  {key:"all",label:"전체 출결현황",icon:"📋",cats:CATS.map(c=>c.key),gradeSplit:false,includeMakeupOnly:true},
   {key:"platon",label:"플라톤",icon:"🎓",cats:["초등_플라톤","중등_플라톤"],gradeSplit:true},
   {key:"easy_korean",label:"이지국어",icon:"📘",cats:["초등_이지","중등_이지"],gradeSplit:false},
   {key:"easy_suneung",label:"이지수능",icon:"📝",cats:["중등_이지수능","고등_이지수능"],gradeSplit:false},
@@ -2711,12 +2732,12 @@ function renderAttGroupCards(){
     const active=S.attGroup===group.key;
     const card=D({style:{background:active?"#f5edd8":"#fff",border:`1.5px solid ${active?GOLD:BORDER}`,borderRadius:"12px",padding:"12px 14px",cursor:"pointer",boxShadow:active?"0 2px 10px rgba(163,121,31,.18)":"0 2px 8px rgba(90,70,20,.06)"},onClick:()=>{S.attGroup=group.key;render();}});
     card.appendChild(D({style:{fontWeight:"800",fontSize:"13px",color:active?GOLD:TM,marginBottom:"9px"}},[group.icon+" "+group.label]));
-    const miniItem=(label,val,color)=>D({style:{textAlign:"center"}},[
-      D({style:{fontSize:"15px",fontWeight:"900",color:color||TM,lineHeight:"1.1"}},[val]),
+    const miniItem=(label,val,color,big)=>D({style:{textAlign:"center"}},[
+      D({style:{fontSize:big?"21px":"15px",fontWeight:"900",color:color||TM,lineHeight:"1.1"}},[val]),
       D({style:{fontSize:"9px",color:"#aaa",marginTop:"2px",fontWeight:"700"}},[label])
     ]);
     const statGrid=D({style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"4px",background:active?"rgba(255,255,255,.5)":"#f5f3ee",borderRadius:"8px",padding:"8px 2px"}});
-    statGrid.appendChild(miniItem("수강생수",sum.count+"명",GOLD));
+    statGrid.appendChild(miniItem("수강생수",sum.count+"명",GOLD,true));
     statGrid.appendChild(miniItem("출석",sum.O+"회","#3a9a5c"));
     statGrid.appendChild(miniItem("결석",sum.X+"회","#d04040"));
     statGrid.appendChild(miniItem("보강",sum.Dv+"회","#e08020"));
@@ -2758,20 +2779,20 @@ function renderAtt(){
   cardHead.appendChild(mnav);attCard.appendChild(cardHead);
 
   if(src==="main"){
-    // ── 선택된 그룹의 이번달 요약: 수강생수·출결현황·금액 모두 같은 크기로 통일 ──
+    // ── 선택된 그룹의 이번달 요약: 수강생수는 3pt 더 크게, 나머지는 통일된 크기 ──
     const sum=getAttGroupSummary(activeGroup.cats);
     const sumRow=D({style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:"8px",padding:"14px 20px 0"}});
-    const sumItem=(label,val,color)=>D({style:{textAlign:"center",background:"#f5f3ee",borderRadius:"10px",padding:"16px 6px"}},[
-      D({style:{fontSize:"32px",fontWeight:"900",color:color||GOLD,lineHeight:"1.1"}},[val]),
+    const sumItem=(label,val,color,big)=>D({style:{textAlign:"center",background:"#f5f3ee",borderRadius:"10px",padding:"16px 6px"}},[
+      D({style:{fontSize:big?"35px":"32px",fontWeight:"900",color:color||GOLD,lineHeight:"1.1"}},[val]),
       D({style:{fontSize:"13px",color:"#888",marginTop:"6px",fontWeight:"800"}},[label])
     ]);
-    sumRow.appendChild(sumItem("수강생수",sum.count+"명",GOLD));
+    sumRow.appendChild(sumItem("수강생수",sum.count+"명",GOLD,true));
     sumRow.appendChild(sumItem("출석",sum.O+"회","#3a9a5c"));
     sumRow.appendChild(sumItem("결석",sum.X+"회","#d04040"));
     sumRow.appendChild(sumItem("보강",sum.Dv+"회","#e08020"));
     sumRow.appendChild(sumItem("예상 교습비",(sum.revenue/10000).toFixed(0)+"만원",GOLD));
     attCard.appendChild(sumRow);
-    attCard.appendChild(buildAttendanceTableEl(activeGroup.cats,"main",activeGroup.gradeSplit?new Set(activeGroup.cats):new Set()));
+    attCard.appendChild(buildAttendanceTableEl(activeGroup.cats,"main",activeGroup.gradeSplit?new Set(activeGroup.cats):new Set(),activeGroup.includeMakeupOnly));
   } else {
     attCard.appendChild(buildAttendanceTableEl(CATS2.map(c=>c.key),"special",new Set()));
   }
@@ -2827,21 +2848,19 @@ function renderChart(){
     const totalEnrollments=totalByCatList.length;
     const totalRevenue=totalByCatList.reduce((a,s)=>a+(s.free?0:s.monthly),0);
     const freeCnt=totalStList.filter(s=>s.free).length;
-    const topSumRow=D({style:{display:"flex",flexDirection:"column",gap:"8px",padding:"12px"}});
-    const pairRow=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}});
+    const topSumRow=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px",padding:"12px"}});
     const cardA=D({className:"kpi-card dark"});
     cardA.appendChild(D({className:"kpi-lbl"},["총 재원생"]));
     cardA.appendChild(D({className:"kpi-val"},[totalStudents+"명"]));
-    cardA.appendChild(D({className:"kpi-sub"},[freeCnt>0?"무료 "+freeCnt+"명 포함":"전원 유료"]));
-    pairRow.appendChild(cardA);
+    cardA.appendChild(D({className:"kpi-sub"},[freeCnt>0?"무료 "+freeCnt+"명":"전원 유료"]));
+    topSumRow.appendChild(cardA);
     const cardA2=D({className:"kpi-card dark"});
     cardA2.appendChild(D({className:"kpi-lbl"},["총 수강생"]));
     cardA2.appendChild(D({className:"kpi-val"},[totalEnrollments+"명"]));
-    cardA2.appendChild(D({className:"kpi-sub"},[totalEnrollments>totalStudents?"분류 중복 "+(totalEnrollments-totalStudents)+"건 포함":"중복 없음"]));
-    pairRow.appendChild(cardA2);
-    topSumRow.appendChild(pairRow);
+    cardA2.appendChild(D({className:"kpi-sub"},[totalEnrollments>totalStudents?"중복 "+(totalEnrollments-totalStudents)+"건":"중복 없음"]));
+    topSumRow.appendChild(cardA2);
     const cardB=D({className:"kpi-card dark"});
-    cardB.appendChild(D({className:"kpi-lbl"},["이번달 예상 교습비"]));
+    cardB.appendChild(D({className:"kpi-lbl"},["예상 교습비"]));
     cardB.appendChild(D({className:"kpi-val"},[(totalRevenue/10000).toFixed(0)+"만원"]));
     cardB.appendChild(D({className:"kpi-sub"},[totalRevenue.toLocaleString()+"원"]));
     topSumRow.appendChild(cardB);
@@ -2947,47 +2966,77 @@ function render(){
   const root=document.getElementById("app");
   root.innerHTML="";
 
-  const hdrStList=calcStudents();
-  const hdrLevelCounts=LEVELS.map(lv=>({lv,cnt:hdrStList.filter(s=>getStudentLevel(s)===lv).length}));
+  const hdrByCatList=calcStudentsByCategory("main");
+  const hdrLevelCounts=LEVELS.map(lv=>({lv,cnt:hdrByCatList.filter(s=>getStudentLevel(s)===lv).length}));
   const hdrSpecialCount=calcSpecialEnrollments().length;
-  const TAB_TITLE={tt:"플라톤 이지 국어 시간표",att:"플라톤 이지 국어 출석표",chart:"플라톤 이지 국어 통계"};
 
-  const hdr=h("header",{});
-  const leftGroup=D({style:{display:"flex",alignItems:"flex-end",gap:"28px",flexWrap:"wrap"}});
+  const hdr=h("header",{style:{alignItems:"flex-end",flexWrap:"wrap",rowGap:"10px"}});
+
+  // ── 좌측: 타이틀 + 시간표/출결/통계 탭 (아래라인 기준) ──
+  const leftGroup=D({style:{display:"flex",alignItems:"flex-end",gap:"22px",flexWrap:"wrap"}});
   const logoWrap=D({className:"logo-wrap"});
   logoWrap.appendChild(Sp({style:{color:"#e0a020",fontWeight:"900",fontSize:"11px",letterSpacing:"2px"}},[String(new Date().getFullYear())]));
-  logoWrap.appendChild(Sp({className:"logo"},[TAB_TITLE[S.tab]||"플라톤 이지 국어"]));
+  logoWrap.appendChild(Sp({className:"logo"},["플라톤 이지국어"]));
   leftGroup.appendChild(logoWrap);
-  const pillsWrap=D({className:"hdr-pill-group no-print",style:{marginBottom:"2px"}});
+
+  // 모던한 세그먼트 컨트롤 스타일 (선택 탭은 상큼한 비비드 앰버, 미선택은 은은한 유리 질감)
+  const TAB_ACTIVE="#ffb020";
+  const tabNav=D({className:"no-print",style:{display:"flex",gap:"3px",background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",borderRadius:"12px",padding:"4px"}});
+  [["tt","시간표"],["att","출결"],["chart","통계"]].forEach(([key,label])=>{
+    const active=S.tab===key;
+    tabNav.appendChild(Bt({style:{padding:"8px 20px",borderRadius:"9px",fontWeight:active?"800":"600",fontSize:"13px",letterSpacing:".2px",border:"none",background:active?TAB_ACTIVE:"transparent",color:active?"#1b2540":"rgba(232,236,245,.65)",cursor:"pointer",transition:"all .15s",boxShadow:active?"0 2px 10px rgba(255,176,32,.45)":"none"},
+      onClick:()=>{S.tab=key;render();}},[label]));
+  });
+  leftGroup.appendChild(tabNav);
+  hdr.appendChild(leftGroup);
+
+  // ── 우측: 저장상태 · 블로그 · 학생수(수강생) · 검색 · 기타기능 (같은 아래라인, 왼쪽과 같은 줄) ──
+  const row2=D({style:{display:"flex",alignItems:"flex-end",flexWrap:"wrap",gap:"10px",marginLeft:"auto",opacity:.88}});
+  const ROW2_H="30px";
+
+  const badge=Sp({className:"save-badge",id:"syncBadge",style:{height:ROW2_H,display:"inline-flex",alignItems:"center",boxSizing:"border-box",padding:"0 10px"}},[S.saveStatus||""]);
+  applyBadgeStyle(badge,S.saveStatus);
+  row2.appendChild(badge);
+
+  row2.appendChild(Bt({className:"btn no-print",style:{background:"#03C75A",color:"#fff",height:ROW2_H,padding:"0 16px",boxSizing:"border-box",display:"inline-flex",alignItems:"center"},onClick:()=>window.open("https://m.blog.naver.com/easy-ssaem?tab=1","_blank")},["📝 블로그"]));
+
+  const pillsWrap=D({className:"hdr-pill-group no-print"});
   const LEVEL_CLASS={초등:"blue",중등:"green",고등:"amber"};
   hdrLevelCounts.forEach(({lv,cnt})=>{
     pillsWrap.appendChild(D({className:"hdr-pill "+LEVEL_CLASS[lv],onClick:()=>openLevelModal(lv)},[Sp({},[lv]),Sp({className:"pv"},[cnt+"명"])]));
   });
   pillsWrap.appendChild(D({className:"hdr-pill special",onClick:()=>openSpecialLevelModal()},[Sp({},["🏖 특강"]),Sp({className:"pv"},[hdrSpecialCount+"명"])]));
-  leftGroup.appendChild(pillsWrap);
-  hdr.appendChild(leftGroup);
-  const hdrRight=D({className:"hdr-right",style:{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}});
-  const badge=Sp({className:"save-badge",id:"syncBadge"},[S.saveStatus||""]);
-  applyBadgeStyle(badge,S.saveStatus);
-  hdrRight.appendChild(badge);
-  hdrRight.appendChild(Bt({className:"btn no-print",style:{background:"#03C75A",color:"#fff"},onClick:()=>window.open("https://m.blog.naver.com/easy-ssaem?tab=1","_blank")},["📝 블로그"]));
-  hdrRight.appendChild(Bt({className:"btn btn-ghost no-print",onClick:openExportModal},["📤 내보내기"]));
-  hdrRight.appendChild(Bt({className:"btn btn-ghost no-print",onClick:()=>{
-    const doPrint=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.print()));
-    if(S.tab!=="tt"){S.tab="tt";render();doPrint();}else doPrint();
-  }},["🖨️ 인쇄"]));
-  hdrRight.appendChild(Bt({className:"btn btn-ghost no-print",onClick:openFeeModal},["⚙️ 기본 교습비"]));
-  hdr.appendChild(hdrRight);root.appendChild(hdr);
+  row2.appendChild(pillsWrap);
+
+  row2.appendChild(renderSearchBar());
+
+  // 기타기능: 내보내기 · 인쇄 · 기본 교습비를 드롭다운 메뉴로 묶음
+  const otherWrap=D({className:"no-print",style:{position:"relative"}});
+  const otherBtn=Bt({className:"btn btn-ghost",style:{height:ROW2_H,padding:"0 16px",boxSizing:"border-box",display:"inline-flex",alignItems:"center"},onClick:(e)=>{e.stopPropagation();S.hdrOtherOpen=!S.hdrOtherOpen;render();}},["⋯ 기타기능"]);
+  otherWrap.appendChild(otherBtn);
+  if(S.hdrOtherOpen){
+    const menu=D({style:{position:"absolute",top:"38px",right:"0",zIndex:"60",background:"#fff",border:`1px solid ${BORDER}`,borderRadius:"10px",boxShadow:"0 8px 24px rgba(0,0,0,.15)",overflow:"hidden",minWidth:"160px"}});
+    const menuItem=(label,onClick)=>{
+      const item=D({style:{padding:"10px 16px",fontSize:"13px",fontWeight:"700",color:TM,cursor:"pointer",whiteSpace:"nowrap"}},[label]);
+      item.addEventListener("mouseenter",()=>item.style.background="#f5edd8");
+      item.addEventListener("mouseleave",()=>item.style.background="transparent");
+      item.addEventListener("click",()=>{S.hdrOtherOpen=false;onClick();});
+      return item;
+    };
+    menu.appendChild(menuItem("📤 내보내기",openExportModal));
+    menu.appendChild(menuItem("🖨️ 인쇄",()=>{
+      const doPrint=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.print()));
+      if(S.tab!=="tt"){S.tab="tt";render();doPrint();}else doPrint();
+    }));
+    menu.appendChild(menuItem("⚙️ 기본 교습비",openFeeModal));
+    otherWrap.appendChild(menu);
+  }
+  row2.appendChild(otherWrap);
+
+  hdr.appendChild(row2);
+  root.appendChild(hdr);
 
   const mainEl=h("main",{});
-  const topRow=D({style:{display:"flex",justifyContent:"flex-start",alignItems:"center",flexWrap:"wrap",gap:"10px"}});
-  const tabNav=D({className:"tab-nav no-print"});
-  [["tt","📅 시간표"],["att","📋 출결"],["chart","📈 통계"]].forEach(([key,label])=>{
-    tabNav.appendChild(Bt({className:"tab-btn"+(S.tab===key?" active":""),onClick:()=>{S.tab=key;render();}},[label]));
-  });
-  topRow.appendChild(tabNav);
-  topRow.appendChild(renderSearchBar());
-  mainEl.appendChild(topRow);
 
   if(S.tab==="tt")mainEl.appendChild(renderTT());
   else if(S.tab==="att")mainEl.appendChild(renderAtt());
