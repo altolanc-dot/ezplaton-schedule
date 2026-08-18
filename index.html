@@ -341,6 +341,7 @@ let S={
   attMonth:toYM(new Date()),
   attGroup:"platon", // 출결 탭에서 선택된 분류(전체/플라톤/이지국어/이지수능/개인), 기본은 플라톤
   hdrOtherOpen:false, // 헤더 "기타기능" 드롭다운 열림 여부
+  statOpenCat:"초등_플라톤", // 통계탭 "세부 학생현황"에서 기본으로 펼쳐서 보여줄 분류
   saveStatus:"",
   loaded:false,
   search:"",
@@ -2406,7 +2407,9 @@ function buildScheduleCard(src){
             const nMeta=store.meta[n]||{};
             const nPending=!nMeta.free&&nMeta.active===false;
             const nl=Sp({className:"slot-name",title:(store.cats.find(c=>c.key===effCat)?.label||"")+(nPending?" · 예정(교습비 미반영)":""),style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),fontStyle:nPending?"italic":"normal",opacity:nPending?0.55:1,borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
-            const todayAtt=(store.att[attKey(src,n,effCat)]||{})[toISODate(new Date())];
+            const todayKeyForCell=toISODate(new Date());
+            const todayDayName=DAYS[new Date().getDay()===0?6:new Date().getDay()-1];
+            const todayAtt=d===todayDayName?(store.att[attKey(src,n,effCat)]||{})[todayKeyForCell]:undefined;
             if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":todayAtt==="D"?"D":""]));
             nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade,src);});
             nl.addEventListener("mouseenter",()=>{if(!isMatch)nl.style.background=effCC.bd;});
