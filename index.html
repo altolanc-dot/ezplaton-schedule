@@ -1630,7 +1630,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
 
       // 수업현황 요약 + 이번달 출결 미니캘린더
       const curYM=toYM(new Date());
-      const attRec2=store.att[attKey(src,name,ms.cat)]||{};
+      const attRec2=(src==="main"?getAttRecordForCat(name,ms.cat):(store.att[attKey(src,name,ms.cat)]||{}));
       const dCnt2=daysInMonth(curYM);
       const[yy2,mm2]=curYM.split("-").map(Number);
       let O2=0,X2=0,D2=0;
@@ -1649,7 +1649,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         cell.addEventListener("click",()=>{
           const ak2=attKey(src,name,ms.cat);
           if(!store.att[ak2])store.att[ak2]={};
-          const curV=store.att[ak2][dk];
+          const curV=attRec2[dk];
           if(!curV)store.att[ak2][dk]="O";
           else if(curV==="O")store.att[ak2][dk]="X";
           else if(curV==="X")store.att[ak2][dk]="D";
@@ -1796,7 +1796,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         onClick:()=>{ms.attM=ymAdd(ms.attM,1);build();}},["▶"]));
       modal.appendChild(mnav);
 
-      const rec=store.att[attKey(src,name,ms.cat)]||{};
+      const rec=(src==="main"?getAttRecordForCat(name,ms.cat):(store.att[attKey(src,name,ms.cat)]||{}));
       const days=daysInMonth(ms.attM);
       const[y,m]=ms.attM.split("-").map(Number);
       const dayNames=["일","월","화","수","목","금","토"];
@@ -1820,7 +1820,7 @@ function openStudentModal(name,fbCat,fbGrade,src="main"){
         cell.addEventListener("click",()=>{
           const ak3=attKey(src,name,ms.cat);
           if(!store.att[ak3])store.att[ak3]={};
-          const cur=store.att[ak3][dk];
+          const cur=rec[dk];
           if(!cur)store.att[ak3][dk]="O";
           else if(cur==="O")store.att[ak3][dk]="X";
           else if(cur==="X")store.att[ak3][dk]="D";
@@ -2673,7 +2673,7 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
       td.appendChild(document.createTextNode(v||"·"));
       td.addEventListener("click",()=>{
         if(!store.att[ak])store.att[ak]={};
-        const cur=store.att[ak][dk];
+        const cur=v;
         if(!cur)store.att[ak][dk]="O";else if(cur==="O")store.att[ak][dk]="X";else if(cur==="X")store.att[ak][dk]="D";else delete store.att[ak][dk];
         render();
       });
