@@ -956,10 +956,17 @@ function renderTodayCard(){
           onClick:()=>{
             if(!attStore[ak])attStore[ak]={};
             const cur=attStore[ak][dateKey];
-            if(!cur)attStore[ak][dateKey]=slot.isMakeup?"D":"O";
-            else if(cur==="O")attStore[ak][dateKey]="X";
-            else if(cur==="X")attStore[ak][dateKey]="D";
-            else delete attStore[ak][dateKey];
+            if(slot.isMakeup){
+              // 보강: 미체크→D(보강출석)→X(불참)→해제
+              if(!cur)attStore[ak][dateKey]="D";
+              else if(cur==="D")attStore[ak][dateKey]="X";
+              else delete attStore[ak][dateKey];
+            } else {
+              if(!cur)attStore[ak][dateKey]="O";
+              else if(cur==="O")attStore[ak][dateKey]="X";
+              else if(cur==="X")attStore[ak][dateKey]="D";
+              else delete attStore[ak][dateKey];
+            }
             render();
           }},[n+(v?" "+(v==="O"?"✓":v==="X"?"✗":"↩"):"")]);
         chips.appendChild(chip);
