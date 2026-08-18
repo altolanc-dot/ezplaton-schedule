@@ -530,6 +530,7 @@ function openScheduleModal(dateKey){
 function openMakeupModal(dateKey,editId){
   const editing=editId?S.makeup.find(m=>m.id===editId):null;
   const ov=mkOv(()=>ov.remove());const modal=mkModal(520);
+  let selectedCat=editing?(editing.cat||""):"";
   modal.appendChild(mkTitle("🔁",dateKey+" 보강 "+(editing?"편집":"추가")));
   modal.appendChild(fLbl("시간"));
   const timeSel=h("select",{className:"field-input",style:{marginBottom:"12px"}});
@@ -539,6 +540,21 @@ function openMakeupModal(dateKey,editId){
     timeSel.appendChild(opt);
   });
   modal.appendChild(timeSel);
+  modal.appendChild(fLbl("분류(선택) — 지정하면 그 분류 출결에만 반영됩니다"));
+  const catGrid=D({className:"cat-grid",style:{marginBottom:"12px"}});
+  function buildCatGrid(){
+    catGrid.innerHTML="";
+    const noneBtn=Bt({className:"cat-btn",style:{borderColor:!selectedCat?GOLD:BORDER,background:!selectedCat?"#f5edd8":"#faf8f4",color:!selectedCat?GOLD:TS,fontWeight:!selectedCat?"800":"400"},
+      onClick:()=>{selectedCat="";buildCatGrid();}},["미지정(전체표시)"]);
+    catGrid.appendChild(noneBtn);
+    CATS.forEach(c=>{
+      const cc=CC[c.key],sel=selectedCat===c.key;
+      catGrid.appendChild(Bt({className:"cat-btn",style:{borderColor:sel?cc.t:BORDER,background:sel?cc.bg:"#faf8f4",color:sel?cc.t:TS,fontWeight:sel?"800":"400"},
+        onClick:()=>{selectedCat=c.key;buildCatGrid();}},[c.label]));
+    });
+  }
+  buildCatGrid();
+  modal.appendChild(catGrid);
   modal.appendChild(fLbl("학년/분류 표시(선택)"));
   const gradeInp=Inp({className:"field-input",placeholder:"예) 초3, 중2",value:editing?editing.grade:"",style:{marginBottom:"12px"}});
   modal.appendChild(gradeInp);
@@ -559,7 +575,7 @@ function openMakeupModal(dateKey,editId){
   br.appendChild(Bt({className:"btn btn-primary",onClick:()=>{
     const names=namesTa.value.split("\n").map(n=>n.trim()).filter(Boolean);
     if(!names.length){ov.remove();return;}
-    const entry={id:editing?editing.id:nid3(),date:dateKey,time:timeSel.value,grade:gradeInp.value.trim(),names,desc:descTa.value.trim()};
+    const entry={id:editing?editing.id:nid3(),date:dateKey,time:timeSel.value,cat:selectedCat||"",grade:gradeInp.value.trim(),names,desc:descTa.value.trim()};
     if(editing)S.makeup=S.makeup.map(m=>m.id===editId?entry:m);
     else S.makeup=[...S.makeup,entry];
     ov.remove();render();
@@ -640,7 +656,7 @@ function renderScheduleCalendar(){
     const mkWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px"}});
     mkList.forEach(mk=>{
       const row=D({style:{fontSize:"12px",color:"#8a6419",background:"#fff3d6",border:"1px solid #e8b448",borderRadius:"8px",padding:"7px 10px",cursor:"pointer"},onClick:()=>openMakeupModal(selDate,mk.id)});
-      row.appendChild(Sp({style:{fontWeight:"800"}},[mk.time.replace(/[AP]M /,"")+(mk.grade?" · "+mk.grade:"")]));
+      row.appendChild(Sp({style:{fontWeight:"800"}},[mk.time.replace(/[AP]M /,"")+(mk.cat?" · "+(CATS.find(c=>c.key===mk.cat)?.label||""):"")+(mk.grade?" · "+mk.grade:"")]));
       row.appendChild(D({style:{marginTop:"2px",color:"#8a6419"}},[mk.names.join(", ")]));
       if(mk.desc)row.appendChild(D({style:{marginTop:"3px",fontSize:"11px",color:"#a3791f",whiteSpace:"pre-wrap"}},[mk.desc]));
       mkWrap.appendChild(row);
@@ -735,10 +751,14 @@ function getAttRecordForCat(name,cat){
   const catKeys=Object.keys(catDays);
   if(catKeys.length<=1)return raw;
   const days=catDays[cat];
-  if(!days)return{};
+  // 보강 예약(S.makeup)으로 잡힌 날짜는 정규 요일과 무관하게 포함시킨다.
+  // 분류가 지정된 보강이면 그 분류에서만, 분류 미지정(과거 데이터 포함)이면 모든 분류에서 보이게 한다.
+  const makeupDates=new Set(
+    S.makeup.filter(mk=>(mk.names||[]).includes(name)&&(!mk.cat||mk.cat===cat)).map(mk=>mk.date)
+  );
   const filtered={};
   Object.entries(raw).forEach(([dk,v])=>{
-    if(days.has(getDayOfWeekKR(dk)))filtered[dk]=v;
+    if((days&&days.has(getDayOfWeekKR(dk)))||makeupDates.has(dk))filtered[dk]=v;
   });
   return filtered;
 }
@@ -921,7 +941,7 @@ function renderTodayCard(){
     }).filter(Boolean);
   }
   // 해당 날짜로 예약된 보강(정규 시간표와 무관하게 특정 날짜에만 추가된 수업)
-  const makeupSlots=S.makeup.filter(mk=>mk.date===dateKey).map(mk=>({id:mk.id,time:mk.time,grade:mk.grade,names:mk.names,desc:mk.desc,isSpecial:false,isMakeup:true}));
+  const makeupSlots=S.makeup.filter(mk=>mk.date===dateKey).map(mk=>({id:mk.id,time:mk.time,cat:mk.cat,grade:mk.grade,names:mk.names,desc:mk.desc,isSpecial:false,isMakeup:true}));
   const slots=[...mainSlots,...specialSlots,...makeupSlots].sort((a,b)=>AK.indexOf(a.time)-AK.indexOf(b.time));
   const card=D({className:"card"});
   const head=D({className:"card-head"});
@@ -944,7 +964,7 @@ function renderTodayCard(){
       const cc=slot.isMakeup?{t:"#c07020",bg:"#fce4c8",bd:"#f0b070",li:"#fff2e0"}:ccMap[slot.cat];
       const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:"10px",padding:"8px 12px"}});
       row.appendChild(Sp({style:{fontWeight:"900",fontSize:"16px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
-      const labelText=slot.isMakeup?("🔁 보강"+(slot.grade?" · "+slot.grade:"")):((slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||""));
+      const labelText=slot.isMakeup?("🔁 보강"+(slot.cat?" · "+(CATS.find(c=>c.key===slot.cat)?.label||""):"")+(slot.grade?" · "+slot.grade:"")):((slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||""));
       row.appendChild(Sp({style:{fontSize:"15px",color:cc.t,fontWeight:"800",whiteSpace:"nowrap"}},[labelText]));
       const attStore=slot.isSpecial?S.att2:S.att;
       const chips=D({style:{display:"flex",gap:"6px",flexWrap:"wrap",alignItems:"center"}});
