@@ -750,15 +750,25 @@ function getAttRecordForCat(name,cat){
   const catDays=getStudentCategoryDays(name);
   const catKeys=Object.keys(catDays);
   if(catKeys.length<=1)return raw;
-  const days=catDays[cat];
-  // 보강 예약(S.makeup)으로 잡힌 날짜는 정규 요일과 무관하게 포함시킨다.
-  // 분류가 지정된 보강이면 그 분류에서만, 분류 미지정(과거 데이터 포함)이면 모든 분류에서 보이게 한다.
-  const makeupDates=new Set(
-    S.makeup.filter(mk=>(mk.names||[]).includes(name)&&(!mk.cat||mk.cat===cat)).map(mk=>mk.date)
-  );
+  const myDays=catDays[cat]||new Set();
+  // 다른 분류(이 분류가 아닌)에만 속하는 요일 집합 - 이 요일들만 "다른 분류 전용"으로 간주해 숨긴다.
+  // (이 분류 요일과 겹치면 이 분류 쪽도 유효하므로 숨기지 않음 - 애매하면 보여주는 쪽이 안전)
+  const otherDaysOnly=new Set();
+  catKeys.forEach(k=>{
+    if(k===cat)return;
+    (catDays[k]||new Set()).forEach(d=>{if(!myDays.has(d))otherDaysOnly.add(d);});
+  });
+  // 보강 예약(S.makeup): 이 분류로 명시 지정된 건 항상 포함, 다른 분류로 명시 지정된 건 제외,
+  // 분류 미지정(과거 데이터 포함)이면 그대로 포함시킨다.
+  const makeupMine=new Set(S.makeup.filter(mk=>(mk.names||[]).includes(name)&&mk.cat===cat).map(mk=>mk.date));
+  const makeupOtherOnly=new Set(S.makeup.filter(mk=>(mk.names||[]).includes(name)&&mk.cat&&mk.cat!==cat).map(mk=>mk.date));
   const filtered={};
   Object.entries(raw).forEach(([dk,v])=>{
-    if((days&&days.has(getDayOfWeekKR(dk)))||makeupDates.has(dk))filtered[dk]=v;
+    if(makeupMine.has(dk)){filtered[dk]=v;return;} // 이 분류로 지정된 보강은 항상 포함
+    if(makeupOtherOnly.has(dk))return; // 다른 분류로 지정된 보강은 제외
+    const dow=getDayOfWeekKR(dk);
+    if(otherDaysOnly.has(dow)&&!myDays.has(dow))return; // 다른 분류 전용 요일만 숨김, 그 외엔 안전하게 표시
+    filtered[dk]=v;
   });
   return filtered;
 }
