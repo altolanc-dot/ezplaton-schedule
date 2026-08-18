@@ -2612,7 +2612,7 @@ function renderAttGroupCards(){
       D({style:{fontSize:"9px",color:"#aaa",marginTop:"2px",fontWeight:"700"}},[label])
     ]);
     const statGrid=D({style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"4px",background:active?"rgba(255,255,255,.5)":"#f5f3ee",borderRadius:"8px",padding:"8px 2px"}});
-    statGrid.appendChild(miniItem("명수",sum.count+"명",GOLD));
+    statGrid.appendChild(miniItem("수강생수",sum.count+"명",GOLD));
     statGrid.appendChild(miniItem("출석",sum.O+"회","#3a9a5c"));
     statGrid.appendChild(miniItem("결석",sum.X+"회","#d04040"));
     statGrid.appendChild(miniItem("보강",sum.Dv+"회","#e08020"));
@@ -2632,6 +2632,7 @@ function renderAtt(){
     const groupHead=D({style:{fontWeight:"800",fontSize:"13px",color:TM,margin:"4px 2px"}},["📂 분류별 보기 (클릭해서 전환)"]);
     wrap.appendChild(groupHead);
     wrap.appendChild(renderAttGroupCards());
+    wrap.appendChild(D({style:{fontSize:"10px",color:"#ccc",margin:"2px 2px 0"}},["※ 수강생수는 분류별 등록 기준이라, 여러 분류를 동시에 듣는 학생은 중복 집계됩니다. (전체 재원생수는 통계 탭에서 확인)"]));
   }
 
   const attCard=D({className:"card"});
@@ -2703,7 +2704,7 @@ function renderChart(){
   const sumCats=isSpecialStat?CATS2:CATS;
   const SHORT_LABEL={초등_플라톤:"초등플라톤",초등_이지:"초등이지",중등_플라톤:"중등플라톤",중등_이지:"중등이지",중등_이지수능:"중등이지수능",고등_이지수능:"고등이지",고등_개인:"고등개인",역사특강_34:"역사(3·4)",역사특강_56:"역사(5·6)",요점정리특강:"요점정리",어휘력특강:"어휘력",중등특강:"중등특강"};
   const sumCatTotals=sumCats.map(c=>({key:c.key,total:byCatList.filter(s=>s.cat===c.key).reduce((a,s)=>a+s.monthly,0),cnt:byCatList.filter(s=>s.cat===c.key).length})).filter(c=>c.cnt>0);
-  const sumItems=[{l:"총 학생수",cnt:stList.length}];
+  const sumItems=[{l:"총 재원생수",cnt:stList.length}];
   sumCatTotals.forEach(c=>sumItems.push({l:SHORT_LABEL[c.key]||c.key,cnt:c.cnt}));
   sumItems.forEach(item=>{
     const si=D({className:"summary-item"});
@@ -2712,6 +2713,7 @@ function renderChart(){
     sg.appendChild(si);
   });
   sumCard.appendChild(sg);
+  if(!isSpecialStat)sumCard.appendChild(D({style:{fontSize:"10px",color:"#ccc",padding:"0 20px 14px"}},["※ 총 재원생수는 고유 인원 기준, 분류별 수강생수는 여러 분류를 동시에 듣는 학생은 각각 집계되어 합계가 총 재원생수보다 많을 수 있습니다."]));
 
   if(isSpecialStat){
     wrap.appendChild(sumCard);
