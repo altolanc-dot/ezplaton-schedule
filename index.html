@@ -956,19 +956,12 @@ function renderTodayCard(){
           onClick:()=>{
             if(!attStore[ak])attStore[ak]={};
             const cur=attStore[ak][dateKey];
-            if(slot.isMakeup){
-              // 보강: 미체크→D(보강출석)→X(불참)→해제
-              if(!cur)attStore[ak][dateKey]="D";
-              else if(cur==="D")attStore[ak][dateKey]="X";
-              else delete attStore[ak][dateKey];
-            } else {
-              if(!cur)attStore[ak][dateKey]="O";
-              else if(cur==="O")attStore[ak][dateKey]="X";
-              else if(cur==="X")attStore[ak][dateKey]="D";
-              else delete attStore[ak][dateKey];
-            }
+            if(!cur)attStore[ak][dateKey]="O";
+            else if(cur==="O")attStore[ak][dateKey]="X";
+            else if(cur==="X")attStore[ak][dateKey]="D";
+            else delete attStore[ak][dateKey];
             render();
-          }},[n+(v?" "+(v==="O"?"✓":v==="X"?"✗":v==="D"?"🔁":""):"")]);
+          }},[n+(v?" "+(v==="O"?"✓":v==="X"?"✗":v==="D"?"D":""):"")]);
         chips.appendChild(chip);
       });
       if(slot.isMakeup&&slot.desc)chips.appendChild(Sp({style:{fontSize:"13px",fontWeight:"700",color:"#a3791f"}},["📝 "+slot.desc]));
@@ -2383,7 +2376,7 @@ function buildScheduleCard(src){
             const nPending=!nMeta.free&&nMeta.active===false;
             const nl=Sp({className:"slot-name",title:(store.cats.find(c=>c.key===effCat)?.label||"")+(nPending?" · 예정(교습비 미반영)":""),style:{color:effCat!==slot.cat?effCC.t:TM,background:isMatch?"#ffe066":"transparent",fontWeight:isMatch?"900":(effCat!==slot.cat?"800":"600"),fontStyle:nPending?"italic":"normal",opacity:nPending?0.55:1,borderRadius:"4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",width:"100%"}},[n]);
             const todayAtt=(store.att[attKey(src,n,effCat)]||{})[toISODate(new Date())];
-            if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":todayAtt==="D"?"🔁":""]));
+            if(todayAtt)nl.appendChild(Sp({style:{fontSize:"9px",marginLeft:"2px",color:todayAtt==="O"?"#3a9a5c":todayAtt==="X"?"#d04040":"#e08020"}},[todayAtt==="O"?"✓":todayAtt==="X"?"✗":todayAtt==="D"?"D":""]));
             nl.addEventListener("click",e=>{e.stopPropagation();openStudentModal(n,effCat,slot.grade,src);});
             nl.addEventListener("mouseenter",()=>{if(!isMatch)nl.style.background=effCC.bd;});
             nl.addEventListener("mouseleave",()=>{if(!isMatch)nl.style.background="transparent";});
