@@ -2238,6 +2238,60 @@ function buildCategorySummaryTable(){
   ])]));
   return tbl;
 }
+// 왼쪽 컬럼용: 분류를 클릭하면 그 분류만 학년별 상세(학생 칩)가 펼쳐지는 버전
+function buildCategorySummaryTableClickable(){
+  const byCatList=calcStudentsByCategory("main");
+  const rows=CATS.map(c=>{
+    const inCat=byCatList.filter(s=>s.cat===c.key);
+    const freeCnt=inCat.filter(s=>s.free).length;
+    const total=inCat.reduce((a,s)=>a+(s.free?0:s.monthly),0);
+    return{...c,students:inCat,cnt:inCat.length,freeCnt,total};
+  }).filter(r=>r.cnt>0);
+  if(!rows.length)return D({style:{color:"#ccc",padding:"16px 20px",fontSize:"12px"}},["등록된 학생이 없습니다."]);
+  const grandCnt=rows.reduce((a,r)=>a+r.cnt,0);
+  const grand=rows.reduce((a,r)=>a+r.total,0);
+  const wrapEl=D({});
+  rows.forEach((r,i)=>{
+    const cc=CC[r.key];
+    const open=S.statOpenCat===r.key;
+    const row=D({style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderBottom:`1px solid ${BORDER}`,cursor:"pointer",background:open?"#faf6ec":(i%2===0?"#fff":"#f5f3ee")},onClick:()=>{S.statOpenCat=open?null:r.key;render();}});
+    const leftPart=D({style:{display:"flex",alignItems:"center",gap:"7px",flexWrap:"wrap"}});
+    leftPart.appendChild(Sp({style:{fontWeight:"800",color:cc.t,fontSize:"13px"}},[r.label]));
+    leftPart.appendChild(Sp({style:{fontSize:"11px",color:TS}},[r.cnt+"명"+(r.freeCnt?" (무료"+r.freeCnt+")":"")]));
+    row.appendChild(leftPart);
+    const rightPart=D({style:{display:"flex",alignItems:"center",gap:"6px"}});
+    rightPart.appendChild(Sp({style:{color:GOLD,fontWeight:"800",fontSize:"13px",whiteSpace:"nowrap"}},[r.total.toLocaleString()+"원"]));
+    rightPart.appendChild(Sp({style:{fontSize:"10px",color:"#ccc"}},[open?"▲":"▼"]));
+    row.appendChild(rightPart);
+    wrapEl.appendChild(row);
+    if(open){
+      const detail=D({style:{padding:"10px 16px 14px",background:"#faf6ec",borderBottom:`1px solid ${BORDER}`}});
+      const gm={};r.students.forEach(s=>{if(!gm[s.grade])gm[s.grade]=[];gm[s.grade].push(s);});
+      const grades=Object.keys(gm).sort();
+      grades.forEach(gr=>{
+        const lst=gm[gr];
+        const sub=lst.reduce((a,s)=>a+(s.free?0:s.monthly),0);
+        const gradeBlock=D({style:{marginBottom:"8px"}});
+        gradeBlock.appendChild(D({style:{fontSize:"11px",fontWeight:"700",color:cc.t,marginBottom:"5px"}},[gr+" ("+lst.length+"명) · "+sub.toLocaleString()+"원"]));
+        const chips=D({style:{display:"flex",flexWrap:"wrap",gap:"5px"}});
+        lst.forEach(s=>{
+          const chip=D({className:"st-chip",style:{background:cc.li,border:`1.5px solid ${cc.bd}`},onClick:(e)=>{e.stopPropagation();openStudentModal(s.name,s.cat,s.grade);}});
+          chip.appendChild(Sp({style:{color:TM,fontWeight:"700"}},[s.name]));
+          chip.appendChild(Sp({style:{fontSize:"10px",color:TS,marginLeft:"2px"}},[s.free?"무료":s.monthly.toLocaleString()+"원"]));
+          chips.appendChild(chip);
+        });
+        gradeBlock.appendChild(chips);
+        detail.appendChild(gradeBlock);
+      });
+      wrapEl.appendChild(detail);
+    }
+  });
+  const footer=D({style:{display:"flex",justifyContent:"space-between",padding:"10px 16px",background:"#f0ece0",fontWeight:"900"}});
+  footer.appendChild(Sp({style:{color:TS,fontSize:"12px"}},["합계 ("+grandCnt+"명)"]));
+  footer.appendChild(Sp({style:{color:GOLD,fontSize:"14px"}},[grand.toLocaleString()+"원"]));
+  wrapEl.appendChild(footer);
+  return wrapEl;
+}
 function renderCombinedStatCard(){
   const isSpecial=(S.statView||"main")==="special";
   const card=D({className:"card"});
@@ -2742,21 +2796,33 @@ function renderChart(){
   wrap.appendChild(switchRow);
 
   wrap.appendChild(renderKpiSummary(chartSrc0));
-  wrap.appendChild(renderCombinedStatCard());
 
   const chartCard=D({className:"card"});
   chartCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},[isSpecialStat?"📈 특강 통계 차트":"📈 통계 차트"])]));
-  const cGrid=D({className:"chart-grid"});
-  const feeBox=D({className:"chart-box"});const feeCanvas=h("canvas",{});feeBox.appendChild(feeCanvas);cGrid.appendChild(feeBox);
-  const hourBox=D({className:"chart-box"});const hourCanvas=h("canvas",{});hourBox.appendChild(hourCanvas);cGrid.appendChild(hourBox);
+  const chartCol=D({style:{display:"flex",flexDirection:"column",gap:"10px",padding:"10px"}});
+  const feeBox=D({className:"chart-box"});const feeCanvas=h("canvas",{});feeBox.appendChild(feeCanvas);chartCol.appendChild(feeBox);
+  const hourBox=D({className:"chart-box"});const hourCanvas=h("canvas",{});hourBox.appendChild(hourCanvas);chartCol.appendChild(hourBox);
   let barCanvas=null;
   if(!isSpecialStat){
-    const barBox=D({className:"chart-box",style:{gridColumn:"1 / -1"}});barCanvas=h("canvas",{});barBox.appendChild(barCanvas);cGrid.appendChild(barBox);
+    const barBox=D({className:"chart-box"});barCanvas=h("canvas",{});barBox.appendChild(barCanvas);chartCol.appendChild(barBox);
   } else {
-    cGrid.appendChild(D({style:{gridColumn:"1 / -1",textAlign:"center",color:"#ccc",fontSize:"12px",padding:"10px 0"}},["※ 특강은 기간이 짧아 일별 변동 추이는 제공하지 않습니다."]));
+    chartCol.appendChild(D({style:{textAlign:"center",color:"#ccc",fontSize:"12px",padding:"10px 0"}},["※ 특강은 기간이 짧아 일별 변동 추이는 제공하지 않습니다."]));
   }
-  chartCard.appendChild(cGrid);
-  wrap.appendChild(chartCard);
+  chartCard.appendChild(chartCol);
+
+  if(isSpecialStat){
+    wrap.appendChild(renderCombinedStatCard());
+    wrap.appendChild(chartCard);
+  } else {
+    // 왼쪽: 교습비 현황(분류별 요약, 클릭시 해당 분류만 학년별 상세) / 오른쪽: 통계 차트 3개 세로 배치
+    const leftCard=D({className:"card"});
+    leftCard.appendChild(D({className:"card-head"},[Sp({className:"card-title"},["💰 교습비 현황"])]));
+    leftCard.appendChild(buildCategorySummaryTableClickable());
+    const twoCol=D({style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",alignItems:"start"}});
+    twoCol.appendChild(leftCard);
+    twoCol.appendChild(chartCard);
+    wrap.appendChild(twoCol);
+  }
 
   setTimeout(()=>{
     const barLabelPlugin=(fmt)=>({
