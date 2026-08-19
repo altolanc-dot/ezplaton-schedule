@@ -640,7 +640,7 @@ function renderScheduleCalendar(){
     const isToday=dk===todayKey;
     const isSel=dk===selDate;
     const cell=D({style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",borderRadius:"6px",padding:"4px 2px",cursor:"pointer",background:isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent",border:isSel?`1.5px solid ${GOLD}`:isToday?"1.5px solid #cfe0f0":"1px solid transparent"}});
-    cell.appendChild(D({style:{fontSize:"14px",color:wd===0?"#d04040":wd===6?"#3a6ea8":"#666",fontWeight:isSel||isToday?"900":"600"}},[String(d)]));
+    cell.appendChild(D({style:{fontSize:"19px",color:wd===0?"#d04040":wd===6?"#3a6ea8":"#666",fontWeight:isSel||isToday?"900":"700"}},[String(d)]));
     const dotWrap=D({style:{display:"flex",justifyContent:"center",gap:"3px",marginTop:"2px"}});
     if(hasMemo)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:GOLD}}));
     if(hasMakeup)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:"#e08020"}}));
@@ -2660,7 +2660,7 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
   if(src==="special")stList.sort((a,b)=>(a.round||"1").localeCompare(b.round||"1"));
   const makeupOnly=(includeMakeupOnly&&src==="main")?getMakeupOnlyStudents():[];
   if(!stList.length&&!makeupOnly.length){
-    return D({style:{color:"#ccc",padding:"24px",textAlign:"center",fontSize:"12px"}},[src==="special"?"등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요.":"등록된 학생이 없습니다."]);
+    return D({style:{color:"#ccc",padding:"24px",textAlign:"center",fontSize:"14px"}},[src==="special"?"등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요.":"등록된 학생이 없습니다."]);
   }
   const tblWrap=D({style:{overflowX:"auto"}});
   const tbl=h("table",{className:"att-tbl"});
@@ -2676,9 +2676,9 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
     const hol=HOLIDAYS[dk];
     const col=(hol||wd===0)?"#d04040":wd===6?"#3a6ea8":"#aaa";
     const bg=hol?"#fde4e4":wd===0?"#fdeded":wd===6?"#eaf1fb":"transparent";
-    htr.appendChild(h("th",{style:{minWidth:"26px",fontSize:"10px",color:col,padding:"4px 1px",background:bg},title:hol||""},[
+    htr.appendChild(h("th",{style:{minWidth:"26px",fontSize:"12px",color:col,padding:"4px 1px",background:bg},title:hol||""},[
       D({},[String(d)]),
-      D({style:{fontSize:"8px",fontWeight:"400",marginTop:"1px"}},[dowNames[wd]])
+      D({style:{fontSize:"10px",fontWeight:"400",marginTop:"1px"}},[dowNames[wd]])
     ]));
   }
   thead.appendChild(htr);tbl.appendChild(thead);
@@ -2687,7 +2687,7 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
   let rowIndex=0;
   function buildGroupHeader(label,cc,count){
     const hr=h("tr",{});
-    hr.appendChild(h("td",{colspan:String(colCount),style:{background:cc.bg,color:cc.t,fontWeight:"800",fontSize:"12px",padding:"7px 14px",textAlign:"left",borderTop:`2px solid ${cc.bd}`}},[label+" ("+count+"명)"]));
+    hr.appendChild(h("td",{colspan:String(colCount),style:{background:cc.bg,color:cc.t,fontWeight:"800",fontSize:"14px",padding:"7px 14px",textAlign:"left",borderTop:`2px solid ${cc.bd}`}},[label+" ("+count+"명)"]));
     tbody.appendChild(hr);
   }
   function buildStudentRow(st){
@@ -2699,16 +2699,16 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
     const ntd=h("td",{style:{paddingLeft:"14px",fontWeight:"700",cursor:"pointer",color:cc.t}});
     ntd.addEventListener("click",()=>openStudentModal(st.name,st.cat,st.grade,src));
     ntd.appendChild(Sp({style:{textDecoration:"underline dotted",textUnderlineOffset:"3px"}},[st.name]));
-    if(src==="special"&&st.cat!=="요점정리특강")ntd.appendChild(Sp({style:{fontSize:"9px",color:"#fff",background:ROUND_COLOR[st.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"5px",fontWeight:"800"}},[ROUND_MAP[st.round||"1"].short]));
+    if(src==="special"&&st.cat!=="요점정리특강")ntd.appendChild(Sp({style:{fontSize:"11px",color:"#fff",background:ROUND_COLOR[st.round||"1"].t,borderRadius:"3px",padding:"0 4px",marginLeft:"5px",fontWeight:"800"}},[ROUND_MAP[st.round||"1"].short]));
     tr.appendChild(ntd);
-    tr.appendChild(h("td",{style:{textAlign:"center"}},[Sp({style:{background:cc.bg,color:cc.t,borderRadius:"5px",padding:"1px 6px",fontSize:"10px",fontWeight:"700"}},[st.isMakeupOnly?"보강":(store.cats.find(c=>c.key===st.cat)?.sub||"")])]));
+    tr.appendChild(h("td",{style:{textAlign:"center"}},[Sp({style:{background:cc.bg,color:cc.t,borderRadius:"5px",padding:"1px 6px",fontSize:"12px",fontWeight:"700"}},[st.isMakeupOnly?"보강":(store.cats.find(c=>c.key===st.cat)?.sub||"")])]));
     // 출/결/보강 횟수는 요일 셀보다 먼저 집계해서, 분류 바로 다음 칸에 배치한다
     let O=0,X=0,Dv=0;
     for(let d=1;d<=days;d++){
       const dk=S.attMonth+"-"+String(d).padStart(2,"0");const v=rec[dk];
       if(v==="O")O++;else if(v==="X")X++;else if(v==="D")Dv++;
     }
-    const sumTd=h("td",{style:{textAlign:"center",fontSize:"12px",fontWeight:"700",whiteSpace:"nowrap"}});
+    const sumTd=h("td",{style:{textAlign:"center",fontSize:"14px",fontWeight:"700",whiteSpace:"nowrap"}});
     sumTd.appendChild(Sp({style:{color:"#3a9a5c"}},[O+"출 "]));
     sumTd.appendChild(Sp({style:{color:"#d04040"}},[X+"결 "]));
     sumTd.appendChild(Sp({style:{color:"#e08020"}},[Dv+"보"]));
@@ -2717,7 +2717,7 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
       const dk=S.attMonth+"-"+String(d).padStart(2,"0");const v=rec[dk];
       const wdc=new Date(yr,mo-1,d).getDay();
       const isOff=HOLIDAYS[dk]||wdc===0||wdc===6;
-      const td=h("td",{style:{textAlign:"center",background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":(isOff?"#f0ece0":""),padding:"4px 0",cursor:"pointer",fontSize:"12px",fontWeight:"800",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}});
+      const td=h("td",{style:{textAlign:"center",background:v==="O"?"#dcf2e8":v==="X"?"#fce4e4":v==="D"?"#fef3de":(isOff?"#f0ece0":""),padding:"4px 0",cursor:"pointer",fontSize:"14px",fontWeight:"800",color:v==="O"?"#3a9a5c":v==="X"?"#d04040":v==="D"?"#e08020":"#ddd"}});
       td.appendChild(document.createTextNode(v||"·"));
       td.addEventListener("click",()=>{
         if(!store.att[ak])store.att[ak]={};
@@ -2762,7 +2762,7 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
   return tblWrap;
 }
 function buildAttLegend(){
-  const leg=D({style:{display:"flex",gap:"12px",padding:"12px 20px",borderTop:"1px solid #e5e0d3",fontSize:"11px",color:TS}});
+  const leg=D({style:{display:"flex",gap:"12px",padding:"12px 20px",borderTop:"1px solid #e5e0d3",fontSize:"13px",color:TS}});
   [{v:"O",c:"#3a9a5c",bg:"#dcf2e8",t:"출석"},{v:"X",c:"#d04040",bg:"#fce4e4",t:"결석"},{v:"D",c:"#e08020",bg:"#fef3de",t:"보강"}].forEach(item=>{
     leg.appendChild(D({style:{display:"flex",alignItems:"center",gap:"4px"}},[Sp({style:{fontWeight:"800",color:item.c,background:item.bg,borderRadius:"4px",padding:"1px 7px"}},[item.v]),Sp({},[item.t])]));
   });
@@ -2799,10 +2799,10 @@ function renderAttGroupCards(){
     const sum=getAttGroupSummary(group.cats);
     const active=S.attGroup===group.key;
     const card=D({style:{background:active?"#f5edd8":"#fff",border:`1.5px solid ${active?GOLD:BORDER}`,borderRadius:"12px",padding:"12px 14px",cursor:"pointer",boxShadow:active?"0 2px 10px rgba(163,121,31,.18)":"0 2px 8px rgba(90,70,20,.06)"},onClick:()=>{S.attGroup=group.key;render();}});
-    card.appendChild(D({style:{fontWeight:"800",fontSize:"13px",color:active?GOLD:TM,marginBottom:"9px"}},[group.icon+" "+group.label]));
+    card.appendChild(D({style:{fontWeight:"800",fontSize:"15px",color:active?GOLD:TM,marginBottom:"9px"}},[group.icon+" "+group.label]));
     const miniItem=(label,val,color,big)=>D({style:{textAlign:"center"}},[
       D({style:{fontSize:big?"21px":"15px",fontWeight:"900",color:color||TM,lineHeight:"1.1"}},[val]),
-      D({style:{fontSize:"9px",color:"#aaa",marginTop:"2px",fontWeight:"700"}},[label])
+      D({style:{fontSize:"11px",color:"#aaa",marginTop:"2px",fontWeight:"700"}},[label])
     ]);
     const statGrid=D({style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"4px",background:active?"rgba(255,255,255,.5)":"#f5f3ee",borderRadius:"8px",padding:"8px 2px"}});
     statGrid.appendChild(miniItem("수강생수",sum.count+"명",GOLD,true));
@@ -2943,7 +2943,7 @@ function renderChart(){
           meta.data.forEach((bar,index)=>{
             const value=dataset.data[index];
             ctx.save();
-            ctx.fillStyle="#555";
+            ctx.fillStyle="#2c2c2c";
             ctx.font="700 11px 'Apple SD Gothic Neo',sans-serif";
             ctx.textAlign="left";
             ctx.textBaseline="middle";
@@ -2997,13 +2997,13 @@ function renderChart(){
     }
     const grandTotal=Object.values(catFeeMap).reduce((a,b)=>a+b,0);
     const feeData=chartCats.map(c=>({label:c.label,val:catFeeMap[c.key]||0,color:chartCC[c.key].t,bg:chartCC[c.key].bg})).filter(d=>d.val>0).sort((a,b)=>b.val-a.val);
-    chartInst.push(new Chart(feeCanvas,{type:"bar",data:{labels:feeData.map(d=>d.label),datasets:[{label:"교습비 합계",data:feeData.map(d=>d.val),backgroundColor:feeData.map(d=>d.bg),borderColor:feeData.map(d=>d.color),borderWidth:2,borderRadius:6}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,layout:{padding:{right:75}},plugins:{legend:{display:false},title:{display:true,text:"분류별 교습비 비중 (높은순)  |  합계: "+(grandTotal/10000).toFixed(0)+"만원",font:{size:14,weight:"bold"},color:"#555"}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v===0?"0":(v/10000).toFixed(0)+"만",font:{size:11}},grid:{color:"#e5e0d3"}},y:{grid:{display:false},ticks:{font:{size:12}}}}},plugins:[barLabelPlugin((v,t)=>(v/10000).toFixed(0)+"만 ("+(grandTotal>0?Math.round(v/grandTotal*100):0)+"%)")]}));
+    chartInst.push(new Chart(feeCanvas,{type:"bar",data:{labels:feeData.map(d=>d.label),datasets:[{label:"교습비 합계",data:feeData.map(d=>d.val),backgroundColor:feeData.map(d=>d.bg),borderColor:feeData.map(d=>d.color),borderWidth:2,borderRadius:6}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,devicePixelRatio:Math.max(window.devicePixelRatio||1,2),layout:{padding:{right:75}},plugins:{legend:{display:false},title:{display:true,text:"분류별 교습비 비중 (높은순)  |  합계: "+(grandTotal/10000).toFixed(0)+"만원",font:{size:14,weight:"bold"},color:"#2c2c2c"}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v===0?"0":(v/10000).toFixed(0)+"만",font:{size:11},color:"#555"},grid:{color:"#e5e0d3"}},y:{grid:{display:false},ticks:{font:{size:12},color:"#555"}}}},plugins:[barLabelPlugin((v,t)=>(v/10000).toFixed(0)+"만 ("+(grandTotal>0?Math.round(v/grandTotal*100):0)+"%)")]}));
 
     const catHours=calcCategoryHours(chartSrc);
     const hourData=chartCats.map(c=>({label:c.label,val:catHours[c.key]||0,color:chartCC[c.key].t,bg:chartCC[c.key].bg})).filter(d=>d.val>0)
       .sort((a,b)=>b.val-a.val);
     const totalHours=Object.values(catHours).reduce((a,b)=>a+b,0);
-    chartInst.push(new Chart(hourCanvas,{type:"bar",data:{labels:hourData.map(d=>d.label),datasets:[{label:"주간 교습시간",data:hourData.map(d=>d.val),backgroundColor:hourData.map(d=>d.bg),borderColor:hourData.map(d=>d.color),borderWidth:2,borderRadius:6}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,layout:{padding:{right:75}},plugins:{legend:{display:false},title:{display:true,text:"분류별 주간 교습시간 (높은순)  |  합계: "+totalHours+"h",font:{size:14,weight:"bold"},color:"#555"}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v+"h",font:{size:11}},grid:{color:"#e5e0d3"}},y:{grid:{display:false},ticks:{font:{size:12}}}}},plugins:[barLabelPlugin((v,t)=>v+"h ("+(t>0?Math.round(v/t*100):0)+"%)")]}));
+    chartInst.push(new Chart(hourCanvas,{type:"bar",data:{labels:hourData.map(d=>d.label),datasets:[{label:"주간 교습시간",data:hourData.map(d=>d.val),backgroundColor:hourData.map(d=>d.bg),borderColor:hourData.map(d=>d.color),borderWidth:2,borderRadius:6}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,devicePixelRatio:Math.max(window.devicePixelRatio||1,2),layout:{padding:{right:75}},plugins:{legend:{display:false},title:{display:true,text:"분류별 주간 교습시간 (높은순)  |  합계: "+totalHours+"h",font:{size:14,weight:"bold"},color:"#2c2c2c"}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v+"h",font:{size:11},color:"#555"},grid:{color:"#e5e0d3"}},y:{grid:{display:false},ticks:{font:{size:12},color:"#555"}}}},plugins:[barLabelPlugin((v,t)=>v+"h ("+(t>0?Math.round(v/t*100):0)+"%)")]}));
 
     if(!isSpecialStat&&barCanvas){
       const daily=calcDailyRevenue();
@@ -3013,7 +3013,7 @@ function renderChart(){
       const padding=(maxV-minV)||500000;
       const yMin=Math.max(0,Math.floor((minV-padding*0.5)/100000)*100000);
       const yMax=Math.ceil((maxV+padding*0.5)/100000)*100000;
-      chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.06)",borderWidth:2,pointBackgroundColor:"#b8872a",pointRadius:0,pointHoverRadius:5,tension:0,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24,right:36}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:14,weight:"bold"},color:"#555"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:11}},grid:{color:"#e5e0d3"}},x:{grid:{display:false},ticks:{font:{size:11},maxRotation:0,autoSkip:true,maxTicksLimit:13}}}},plugins:[lastLabelPlugin]}));
+      chartInst.push(new Chart(barCanvas,{type:"line",data:{labels:daily.map(d=>d.label),datasets:[{label:"교습비",data:daily.map(d=>d.total),borderColor:"#b8872a",backgroundColor:"rgba(184,135,42,.06)",borderWidth:2,pointBackgroundColor:"#b8872a",pointRadius:0,pointHoverRadius:5,tension:0,fill:false,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,devicePixelRatio:Math.max(window.devicePixelRatio||1,2),layout:{padding:{top:24,right:36}},plugins:{legend:{display:false},title:{display:true,text:"교습비 변동 추이 (전6개월~후6개월)",font:{size:14,weight:"bold"},color:"#2c2c2c"},tooltip:{mode:"index",intersect:false,callbacks:{label:ctx=>ctx.raw==null?"":(ctx.raw/10000).toFixed(0)+"만원"}}},scales:{y:{min:yMin,max:yMax,ticks:{callback:v=>(v/10000).toFixed(0)+"만",font:{size:11},color:"#555"},grid:{color:"#e5e0d3"}},x:{grid:{display:false},ticks:{font:{size:11},maxRotation:0,autoSkip:true,maxTicksLimit:13,color:"#555"}}}},plugins:[lastLabelPlugin]}));
     }
   },60);
   return wrap;
