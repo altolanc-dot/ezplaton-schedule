@@ -1007,7 +1007,7 @@ function renderTodayCard(){
       const catsArr=slot.isSpecial?CATS2:CATS;
       const ccMap=slot.isSpecial?CC2:CC;
       const cc=slot.isMakeup?{t:"#c07020",bg:"#fce4c8",bd:"#f0b070",li:"#fff2e0"}:ccMap[slot.cat];
-      const row=D({style:{display:"grid",gridTemplateColumns:"52px 118px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:"10px",padding:"8px 12px"}});
+      const row=D({style:{display:"grid",gridTemplateColumns:"52px 190px 1fr",alignItems:"center",gap:"10px",background:cc.li,border:`1px solid ${cc.bd}`,borderRadius:"10px",padding:"8px 12px"}});
       row.appendChild(Sp({style:{fontWeight:"900",fontSize:"16px",color:cc.t}},[slot.time.replace(/[AP]M /,"")]));
       const labelText=slot.isMakeup?("🔁 보강"+(slot.cat?" · "+(CATS.find(c=>c.key===slot.cat)?.label||""):"")+(slot.grade?" · "+slot.grade:"")):((slot.isSpecial?"🏖 ":"")+slot.grade+" · "+(catsArr.find(c=>c.key===slot.cat)?.sub||""));
       row.appendChild(Sp({style:{fontSize:"15px",color:cc.t,fontWeight:"800",whiteSpace:"nowrap"}},[labelText]));
