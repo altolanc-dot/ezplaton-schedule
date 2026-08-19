@@ -607,9 +607,9 @@ function renderScheduleCalendar(){
   const head=D({className:"card-head"});
   head.appendChild(Sp({className:"card-title"},["🗓️ 월별 주요일정"]));
   const nav=D({className:"month-nav"});
-  nav.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"13px"},onClick:()=>{S.calMonth=ymAdd(S.calMonth,-1);render();}},["◀"]));
-  nav.appendChild(Sp({className:"month-lbl",style:{fontSize:"12px"}},[ymLabel(S.calMonth)]));
-  nav.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"13px"},onClick:()=>{S.calMonth=ymAdd(S.calMonth,1);render();}},["▶"]));
+  nav.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"16px"},onClick:()=>{S.calMonth=ymAdd(S.calMonth,-1);render();}},["◀"]));
+  nav.appendChild(Sp({className:"month-lbl",style:{fontSize:"15px"}},[ymLabel(S.calMonth)]));
+  nav.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"16px"},onClick:()=>{S.calMonth=ymAdd(S.calMonth,1);render();}},["▶"]));
   head.appendChild(nav);
   card.appendChild(head);
 
@@ -621,7 +621,7 @@ function renderScheduleCalendar(){
   const calCol=D({style:{flex:"1 1 220px",minWidth:"200px"}});
   const dayNames=["일","월","화","수","목","금","토"];
   const hdrRow=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"4px"}});
-  dayNames.forEach((dn,i)=>hdrRow.appendChild(D({style:{textAlign:"center",fontSize:"10px",fontWeight:"800",color:i===0?"#d04040":i===6?"#3a6ea8":"#aaa",padding:"3px 0"}},[dn])));
+  dayNames.forEach((dn,i)=>hdrRow.appendChild(D({style:{textAlign:"center",fontSize:"13px",fontWeight:"800",color:i===0?"#d04040":i===6?"#3a6ea8":"#aaa",padding:"3px 0"}},[dn])));
   calCol.appendChild(hdrRow);
 
   const[y,m]=S.calMonth.split("-").map(Number);
@@ -639,7 +639,7 @@ function renderScheduleCalendar(){
     const isToday=dk===todayKey;
     const isSel=dk===selDate;
     const cell=D({style:{textAlign:"center",borderRadius:"6px",padding:"4px 2px",cursor:"pointer",background:isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent",border:isSel?`1.5px solid ${GOLD}`:isToday?"1.5px solid #cfe0f0":"1px solid transparent"}});
-    cell.appendChild(D({style:{fontSize:"11px",color:wd===0?"#d04040":wd===6?"#3a6ea8":"#666",fontWeight:isSel||isToday?"900":"600"}},[String(d)]));
+    cell.appendChild(D({style:{fontSize:"14px",color:wd===0?"#d04040":wd===6?"#3a6ea8":"#666",fontWeight:isSel||isToday?"900":"600"}},[String(d)]));
     const dotWrap=D({style:{display:"flex",justifyContent:"center",gap:"3px",marginTop:"2px"}});
     if(hasMemo)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:GOLD}}));
     if(hasMakeup)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:"#e08020"}}));
@@ -656,33 +656,33 @@ function renderScheduleCalendar(){
   // ── 우: 선택 날짜 일정 + 이번 달 목록 ──
   const memoCol=D({style:{flex:"1 1 180px",minWidth:"160px",display:"flex",flexDirection:"column",gap:"8px"}});
   const selHead=D({style:{display:"flex",justifyContent:"space-between",alignItems:"center"}});
-  selHead.appendChild(Sp({style:{fontWeight:"800",color:GOLD,fontSize:"12px"}},[selDate+(selDate===todayKey?" (오늘)":"")]));
-  selHead.appendChild(Bt({className:"btn btn-ghost",style:{fontSize:"10px",padding:"3px 9px"},onClick:()=>openScheduleModal(selDate)},[S.sched[selDate]?"✏️ 편집":"➕ 추가"]));
+  selHead.appendChild(Sp({style:{fontWeight:"800",color:GOLD,fontSize:"15px"}},[selDate+(selDate===todayKey?" (오늘)":"")]));
+  selHead.appendChild(Bt({className:"btn btn-ghost",style:{fontSize:"13px",padding:"3px 9px"},onClick:()=>openScheduleModal(selDate)},[S.sched[selDate]?"✏️ 편집":"➕ 추가"]));
   memoCol.appendChild(selHead);
   if(S.sched[selDate]){
-    memoCol.appendChild(D({style:{fontSize:"13px",color:TM,background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"8px",padding:"10px 12px",whiteSpace:"pre-wrap",minHeight:"36px"}},[S.sched[selDate]]));
+    memoCol.appendChild(D({style:{fontSize:"16px",color:TM,background:"#f5f3ee",border:`1px solid ${BORDER}`,borderRadius:"8px",padding:"10px 12px",whiteSpace:"pre-wrap",minHeight:"36px"}},[S.sched[selDate]]));
   } else {
-    memoCol.appendChild(D({style:{fontSize:"12px",color:"#ccc",border:`1px dashed ${BORDER}`,borderRadius:"8px",padding:"10px 12px"}},["등록된 일정이 없습니다."]));
+    memoCol.appendChild(D({style:{fontSize:"15px",color:"#ccc",border:`1px dashed ${BORDER}`,borderRadius:"8px",padding:"10px 12px"}},["등록된 일정이 없습니다."]));
   }
 
   // ── 보강 예약 목록 ──
   const mkHead=D({style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"4px"}});
-  mkHead.appendChild(Sp({style:{fontWeight:"800",color:"#c07020",fontSize:"12px"}},["🔁 보강 예약"]));
-  mkHead.appendChild(Bt({className:"btn btn-ghost",style:{fontSize:"10px",padding:"3px 9px",color:"#c07020"},onClick:()=>openMakeupModal(selDate)},["➕ 추가"]));
+  mkHead.appendChild(Sp({style:{fontWeight:"800",color:"#c07020",fontSize:"15px"}},["🔁 보강 예약"]));
+  mkHead.appendChild(Bt({className:"btn btn-ghost",style:{fontSize:"13px",padding:"3px 9px",color:"#c07020"},onClick:()=>openMakeupModal(selDate)},["➕ 추가"]));
   memoCol.appendChild(mkHead);
   const mkList=S.makeup.filter(mk=>mk.date===selDate);
   if(mkList.length){
     const mkWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px"}});
     mkList.forEach(mk=>{
-      const row=D({style:{fontSize:"12px",color:"#8a6419",background:"#fff3d6",border:"1px solid #e8b448",borderRadius:"8px",padding:"7px 10px",cursor:"pointer"},onClick:()=>openMakeupModal(selDate,mk.id)});
+      const row=D({style:{fontSize:"15px",color:"#8a6419",background:"#fff3d6",border:"1px solid #e8b448",borderRadius:"8px",padding:"7px 10px",cursor:"pointer"},onClick:()=>openMakeupModal(selDate,mk.id)});
       row.appendChild(Sp({style:{fontWeight:"800"}},[mk.time.replace(/[AP]M /,"")+(mk.cat?" · "+(CATS.find(c=>c.key===mk.cat)?.label||""):"")+(mk.grade?" · "+mk.grade:"")]));
       row.appendChild(D({style:{marginTop:"2px",color:"#8a6419"}},[mk.names.join(", ")]));
-      if(mk.desc)row.appendChild(D({style:{marginTop:"3px",fontSize:"11px",color:"#a3791f",whiteSpace:"pre-wrap"}},[mk.desc]));
+      if(mk.desc)row.appendChild(D({style:{marginTop:"3px",fontSize:"14px",color:"#a3791f",whiteSpace:"pre-wrap"}},[mk.desc]));
       mkWrap.appendChild(row);
     });
     memoCol.appendChild(mkWrap);
   } else {
-    memoCol.appendChild(D({style:{fontSize:"12px",color:"#ccc",border:`1px dashed ${BORDER}`,borderRadius:"8px",padding:"10px 12px"}},["예약된 보강이 없습니다."]));
+    memoCol.appendChild(D({style:{fontSize:"15px",color:"#ccc",border:`1px dashed ${BORDER}`,borderRadius:"8px",padding:"10px 12px"}},["예약된 보강이 없습니다."]));
   }
   body.appendChild(memoCol);
 
