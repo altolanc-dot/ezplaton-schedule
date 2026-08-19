@@ -613,12 +613,12 @@ function renderScheduleCalendar(){
   head.appendChild(nav);
   card.appendChild(head);
 
-  const body=D({style:{display:"flex",gap:"14px",padding:"12px 16px",flexWrap:"wrap"}});
+  const body=D({style:{display:"flex",gap:"14px",padding:"12px 16px",flexWrap:"wrap",alignItems:"stretch"}});
   const todayKey=toISODate(new Date());
   const selDate=S.viewDate||todayKey;
 
-  // ── 좌: 달력 ──
-  const calCol=D({style:{flex:"1 1 220px",minWidth:"200px"}});
+  // ── 좌: 달력 (세로로 꽉 채워서 하단 빈공간 없앰) ──
+  const calCol=D({style:{flex:"1 1 220px",minWidth:"200px",display:"flex",flexDirection:"column"}});
   const dayNames=["일","월","화","수","목","금","토"];
   const hdrRow=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"4px"}});
   dayNames.forEach((dn,i)=>hdrRow.appendChild(D({style:{textAlign:"center",fontSize:"13px",fontWeight:"800",color:i===0?"#d04040":i===6?"#3a6ea8":"#aaa",padding:"3px 0"}},[dn])));
@@ -628,7 +628,8 @@ function renderScheduleCalendar(){
   const days=daysInMonth(S.calMonth);
   const firstDay=new Date(y,m-1,1).getDay();
 
-  let row=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"2px"}});
+  const weeksRows=[];
+  let row=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"2px",flex:"1"}});
   for(let i=0;i<firstDay;i++)row.appendChild(D({}));
   let col=firstDay;
   for(let d=1;d<=days;d++){
@@ -638,7 +639,7 @@ function renderScheduleCalendar(){
     const hasMakeup=S.makeup.some(mk=>mk.date===dk);
     const isToday=dk===todayKey;
     const isSel=dk===selDate;
-    const cell=D({style:{textAlign:"center",borderRadius:"6px",padding:"4px 2px",cursor:"pointer",background:isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent",border:isSel?`1.5px solid ${GOLD}`:isToday?"1.5px solid #cfe0f0":"1px solid transparent"}});
+    const cell=D({style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",borderRadius:"6px",padding:"4px 2px",cursor:"pointer",background:isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent",border:isSel?`1.5px solid ${GOLD}`:isToday?"1.5px solid #cfe0f0":"1px solid transparent"}});
     cell.appendChild(D({style:{fontSize:"14px",color:wd===0?"#d04040":wd===6?"#3a6ea8":"#666",fontWeight:isSel||isToday?"900":"600"}},[String(d)]));
     const dotWrap=D({style:{display:"flex",justifyContent:"center",gap:"3px",marginTop:"2px"}});
     if(hasMemo)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:GOLD}}));
@@ -648,9 +649,10 @@ function renderScheduleCalendar(){
     cell.addEventListener("mouseenter",()=>{if(!isSel)cell.style.background="#f0ece0";});
     cell.addEventListener("mouseleave",()=>{cell.style.background=isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent";});
     row.appendChild(cell);col++;
-    if(col%7===0){calCol.appendChild(row);row=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"2px"}});}
+    if(col%7===0){weeksRows.push(row);row=D({style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"2px",flex:"1"}});}
   }
-  if(col%7!==0){const rem=7-(col%7);for(let i=0;i<rem;i++)row.appendChild(D({}));calCol.appendChild(row);}
+  if(col%7!==0){const rem=7-(col%7);for(let i=0;i<rem;i++)row.appendChild(D({}));weeksRows.push(row);}
+  weeksRows.forEach(r=>calCol.appendChild(r));
   body.appendChild(calCol);
 
   // ── 우: 선택 날짜 일정 + 이번 달 목록 ──
