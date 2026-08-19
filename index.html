@@ -70,7 +70,7 @@ main{padding:20px 28px;display:flex;flex-direction:column;gap:18px;}
 .btn-ghost:hover{background:#ece6d5;}
 .btn-green{background:#dcece0;color:#2a6a44;border:1px solid #90bc9c;}
 .btn-green:hover{background:#c9e2d0;}
-.tt-wrap{overflow-x:auto;}
+.tt-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 260px);}
 table.tt{border-collapse:separate;border-spacing:0;min-width:700px;width:100%;}
 table.tt th,table.tt td{border:0.5px solid #e5e0d3;background-clip:padding-box;}
 table.tt thead th{background:#1b2540;font-weight:800;font-size:13px;letter-spacing:2px;padding:10px;text-align:center;color:#cfd6ea;position:sticky;top:0;z-index:15;}
@@ -985,7 +985,7 @@ function renderTodayCard(){
   navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"다음 날",onClick:()=>{S.viewDate=addDaysToKey(S.viewDate,1);S.calMonth=S.viewDate.slice(0,7);render();}},["▶"]));
   head.appendChild(navWrap);
   card.appendChild(head);
-  const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"8px",maxHeight:"230px",overflowY:"auto"}});
+  const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"8px"}});
   if(!slots.length){
     body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},[(isToday?"오늘은":dayName+"요일엔")+" 예정된 수업이 없습니다."]));
   } else {
