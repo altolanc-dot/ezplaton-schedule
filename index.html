@@ -73,7 +73,7 @@ main{padding:20px 28px;display:flex;flex-direction:column;gap:18px;}
 .tt-wrap{overflow-x:auto;}
 table.tt{border-collapse:separate;border-spacing:0;min-width:700px;width:100%;}
 table.tt th,table.tt td{border:0.5px solid #e5e0d3;background-clip:padding-box;}
-table.tt thead th{background:#1b2540;font-weight:800;font-size:13px;letter-spacing:2px;padding:10px;text-align:center;color:#cfd6ea;}
+table.tt thead th{background:#1b2540;font-weight:800;font-size:13px;letter-spacing:2px;padding:10px;text-align:center;color:#cfd6ea;position:sticky;top:0;z-index:15;}
 table.tt .time-col{background:#f5f3ee;text-align:right;padding:0 8px;font-size:17px;font-weight:800;color:#8a8272;white-space:nowrap;vertical-align:middle;width:60px;}
 table.tt .ap-col{text-align:center;font-weight:900;font-size:10px;writing-mode:vertical-rl;letter-spacing:4px;padding:3px 2px;width:18px;}
 table.tt .empty-cell{background:#fafaf7;cursor:pointer;min-width:100px;}
@@ -674,9 +674,9 @@ function renderScheduleCalendar(){
   memoCol.appendChild(mkHead);
   const mkList=S.makeup.filter(mk=>mk.date===selDate);
   if(mkList.length){
-    const mkWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px"}});
+    const mkWrap=D({style:{display:"flex",flexDirection:"column",gap:"6px",maxHeight:"260px",overflowY:"auto",paddingRight:"2px"}});
     mkList.forEach(mk=>{
-      const row=D({style:{fontSize:"15px",color:"#8a6419",background:"#fff3d6",border:"1px solid #e8b448",borderRadius:"8px",padding:"7px 10px",cursor:"pointer"},onClick:()=>openMakeupModal(selDate,mk.id)});
+      const row=D({style:{fontSize:"15px",color:"#8a6419",background:"#fff3d6",border:"1px solid #e8b448",borderRadius:"8px",padding:"7px 10px",cursor:"pointer",flexShrink:"0"},onClick:()=>openMakeupModal(selDate,mk.id)});
       row.appendChild(Sp({style:{fontWeight:"800"}},[mk.time.replace(/[AP]M /,"")+(mk.cat?" · "+(CATS.find(c=>c.key===mk.cat)?.label||""):"")+(mk.grade?" · "+mk.grade:"")]));
       row.appendChild(D({style:{marginTop:"2px",color:"#8a6419"}},[mk.names.join(", ")]));
       if(mk.desc)row.appendChild(D({style:{marginTop:"3px",fontSize:"14px",color:"#a3791f",whiteSpace:"pre-wrap"}},[mk.desc]));
@@ -985,7 +985,7 @@ function renderTodayCard(){
   navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"다음 날",onClick:()=>{S.viewDate=addDaysToKey(S.viewDate,1);S.calMonth=S.viewDate.slice(0,7);render();}},["▶"]));
   head.appendChild(navWrap);
   card.appendChild(head);
-  const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"8px"}});
+  const body=D({style:{padding:"14px 20px",display:"flex",flexDirection:"column",gap:"8px",maxHeight:"230px",overflowY:"auto"}});
   if(!slots.length){
     body.appendChild(D({style:{color:"#ccc",fontSize:"13px",padding:"4px 0"}},[(isToday?"오늘은":dayName+"요일엔")+" 예정된 수업이 없습니다."]));
   } else {
@@ -1030,9 +1030,9 @@ function renderTodayCard(){
       row.appendChild(chips);
       body.appendChild(row);
     });
-    body.appendChild(D({style:{fontSize:"10px",color:"#666"}},["※ 학생이름을 클릭하면 출결등록 가능합니다. (출석(O)→결석(X)→보강(D)→해제)"]));
   }
   card.appendChild(body);
+  if(slots.length)card.appendChild(D({style:{fontSize:"10px",color:"#666",padding:"0 20px 12px"}},["※ 학생이름을 클릭하면 출결등록 가능합니다. (출석(O)→결석(X)→보강(D)→해제)"]));
   return card;
 }
 function renderSearchBar(){
