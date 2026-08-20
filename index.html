@@ -97,7 +97,7 @@ table.stat tfoot td{background:#f0ece0;font-weight:800;}
 .st-chip:hover{filter:brightness(.93);}
 table.att-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
 table.att-tbl th,table.att-tbl td{border:1px solid #e5e0d3;padding:6px 3px;text-align:center;}
-table.att-tbl thead th{background:#1b2540;font-weight:700;color:#cfd6ea;position:sticky;z-index:20;}
+table.att-tbl thead th{background:#1b2540;font-weight:700;color:#cfd6ea;position:sticky;top:0;z-index:20;}
 table.att-tbl tbody tr:hover{background:#f5f3ee;}
 .overlay{position:fixed;inset:0;background:rgba(20,15,5,.5);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
 .modal{background:#ffffff;border-radius:18px;padding:28px;max-height:90vh;overflow-y:auto;box-shadow:0 16px 56px rgba(30,20,5,.3);border:1px solid #e5e0d3;}
@@ -2661,19 +2661,19 @@ function renderPaymentDueCard(){
 function renderTT(){
   const wrap=D({});
   if(S.view==="main"){
-    const hdrEl=document.querySelector("header");
-    const hdrH=hdrEl?hdrEl.offsetHeight:96;
-    const stickyWrap=D({style:{position:"sticky",top:hdrH+"px",zIndex:"25",background:"#f5f3ee",paddingBottom:"6px",boxShadow:"0 4px 10px -6px rgba(0,0,0,.15)"}});
-    stickyWrap.setAttribute("id","ttStickyWrap");
+    // 오늘 수업 + 월별 주요일정은 이제 고정하지 않고 일반적으로 스크롤되어 올라간다.
     const topGrid=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:"16px",marginBottom:"10px"}});
     topGrid.appendChild(renderTodayCard());
     topGrid.appendChild(renderScheduleCalendar());
-    stickyWrap.appendChild(topGrid);
-    stickyWrap.appendChild(buildScheduleCardHead(S.view));
-    wrap.appendChild(stickyWrap);
-  } else {
-    wrap.appendChild(buildScheduleCardHead(S.view));
+    wrap.appendChild(topGrid);
   }
+  // "주간 시간표" 제목줄(정규/특강 토글 + 분류 범례)은 화면 상단에 닿으면 고정된다.
+  const hdrEl=document.querySelector("header");
+  const hdrH=hdrEl?hdrEl.offsetHeight:96;
+  const stickyWrap=D({style:{position:"sticky",top:hdrH+"px",zIndex:"25",background:"#f5f3ee",paddingBottom:"6px",boxShadow:"0 4px 10px -6px rgba(0,0,0,.15)"}});
+  stickyWrap.setAttribute("id","ttStickyWrap");
+  stickyWrap.appendChild(buildScheduleCardHead(S.view));
+  wrap.appendChild(stickyWrap);
   wrap.appendChild(buildScheduleCardGrid(S.view));
   return wrap;
 }
@@ -2704,7 +2704,8 @@ function buildAttendanceTableEl(catKeys,src,gradeSplitCats,includeMakeupOnly){
   if(!stList.length&&!makeupOnly.length){
     return D({style:{color:"#ccc",padding:"24px",textAlign:"center",fontSize:"14px"}},[src==="special"?"등록된 특강 학생이 없습니다. 시간표 탭에서 '🏖 특강 시간표'로 전환해 추가해보세요.":"등록된 학생이 없습니다."]);
   }
-  const tblWrap=D({style:{overflowX:"auto"}});
+  const tblWrap=D({style:{overflowX:"auto",overflowY:"auto"}});
+  tblWrap.setAttribute("id","attTblWrap");
   const tbl=h("table",{className:"att-tbl"});
   const thead=h("thead",{});const htr=h("tr",{});
   htr.appendChild(h("th",{style:{minWidth:"90px",textAlign:"left",paddingLeft:"14px"}},["학생"]));
@@ -3158,17 +3159,16 @@ function render(){
 
   root.appendChild(mainEl);
 
-  // 출결 탭(정규): 헤더+분류별보기 영역이 실제로 차지하는 높이를 측정해서
-  // 출결표 요일 헤더행이 그 바로 아래에 정확히 이어붙어 고정되도록 설정한다.
-  // (offsetTop은 스크롤된 상태에서 sticky 요소 기준 부정확할 수 있어, 높이값만 더해서 계산)
+  // 출결 탭(정규): 상단 고정영역(헤더+분류별보기+출결현황 제목줄) 실제 높이만큼을 제외한
+  // 나머지 공간을 출결표 스크롤 박스 높이로 맞춘다. 표 자체가 스크롤 컨테이너가 되므로
+  // thead는 top:0(표 기준)로 고정되고, 페이지 레벨 sticky와 별도로 안정적으로 작동한다.
   if(S.tab==="att"&&(S.attView||"main")==="main"){
     const hdrEl0=document.querySelector("header");
     const hdrH0=hdrEl0?hdrEl0.offsetHeight:96;
     const groupWrap=document.getElementById("attStickyGroupWrap");
-    if(groupWrap){
-      const offset=hdrH0+groupWrap.offsetHeight;
-      document.querySelectorAll("table.att-tbl thead th").forEach(th=>{th.style.top=offset+"px";});
-    }
+    const groupH=groupWrap?groupWrap.offsetHeight:0;
+    const tblWrapEl=document.getElementById("attTblWrap");
+    if(tblWrapEl)tblWrapEl.style.maxHeight="calc(100vh - "+(hdrH0+groupH+60)+"px)";
   }
   // 시간표 탭: 상단 고정영역(오늘수업/월별일정/시간표 헤더) 실제 높이만큼을 제외한
   // 나머지 공간을 시간표 그리드 스크롤 박스 높이로 정확히 맞춘다.
