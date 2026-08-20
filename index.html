@@ -95,9 +95,9 @@ table.stat tfoot td{background:#f0ece0;font-weight:800;}
 .fee-card-body{padding:11px 15px;display:flex;flex-direction:column;gap:9px;}
 .st-chip{border-radius:8px;padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;transition:filter .12s;}
 .st-chip:hover{filter:brightness(.93);}
-table.att-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+table.att-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
 table.att-tbl th,table.att-tbl td{border:1px solid #e5e0d3;padding:6px 3px;text-align:center;}
-table.att-tbl thead th{background:#1b2540;font-weight:700;color:#cfd6ea;}
+table.att-tbl thead th{background:#1b2540;font-weight:700;color:#cfd6ea;position:sticky;z-index:20;}
 table.att-tbl tbody tr:hover{background:#f5f3ee;}
 .overlay{position:fixed;inset:0;background:rgba(20,15,5,.5);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
 .modal{background:#ffffff;border-radius:18px;padding:28px;max-height:90vh;overflow-y:auto;box-shadow:0 16px 56px rgba(30,20,5,.3);border:1px solid #e5e0d3;}
@@ -2873,6 +2873,7 @@ function renderAtt(){
     const hdrEl=document.querySelector("header");
     const hdrH=hdrEl?hdrEl.offsetHeight:96;
     const stickyGroupWrap=D({style:{position:"sticky",top:hdrH+"px",zIndex:"25",background:"#f5f3ee",paddingBottom:"6px",marginBottom:"2px",boxShadow:"0 4px 10px -6px rgba(0,0,0,.15)"}});
+    stickyGroupWrap.setAttribute("id","attStickyGroupWrap");
     const groupHead=D({style:{fontWeight:"800",fontSize:"13px",color:TM,margin:"4px 2px"}},["📂 분류별 보기 (클릭해서 전환)"]);
     stickyGroupWrap.appendChild(groupHead);
     stickyGroupWrap.appendChild(renderAttGroupCards());
@@ -3143,6 +3144,17 @@ function render(){
   else mainEl.appendChild(renderChart());
 
   root.appendChild(mainEl);
+
+  // 출결 탭(정규): 헤더+분류별보기 영역이 실제로 차지하는 높이를 측정해서
+  // 출결표 요일 헤더행이 그 바로 아래에 정확히 이어붙어 고정되도록 설정한다.
+  if(S.tab==="att"&&(S.attView||"main")==="main"){
+    const groupWrap=document.getElementById("attStickyGroupWrap");
+    if(groupWrap){
+      const offset=groupWrap.offsetTop+groupWrap.offsetHeight;
+      document.querySelectorAll("table.att-tbl thead th").forEach(th=>{th.style.top=offset+"px";});
+    }
+  }
+
   scheduleAutoSave();
 }
 
