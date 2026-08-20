@@ -2850,16 +2850,6 @@ function renderAtt(){
 
   // 정규(main)에서는 "분류별 보기" 카드를 출결 탭 맨 위에 두고, 선택된 그룹에 따라 아래 내용이 화면전환된다.
   const activeGroup=src==="main"?(ATT_GROUPS.find(g=>g.key===S.attGroup)||ATT_GROUPS[1]):null;
-  if(src==="main"){
-    const hdrEl=document.querySelector("header");
-    const hdrH=hdrEl?hdrEl.offsetHeight:96;
-    const stickyGroupWrap=D({style:{position:"sticky",top:hdrH+"px",zIndex:"25",background:"#f5f3ee",paddingBottom:"6px",marginBottom:"2px",boxShadow:"0 4px 10px -6px rgba(0,0,0,.15)"}});
-    const groupHead=D({style:{fontWeight:"800",fontSize:"13px",color:TM,margin:"4px 2px"}},["📂 분류별 보기 (클릭해서 전환)"]);
-    stickyGroupWrap.appendChild(groupHead);
-    stickyGroupWrap.appendChild(renderAttGroupCards());
-    stickyGroupWrap.appendChild(D({style:{fontSize:"10px",color:"#ccc",margin:"2px 2px 0"}},["※ 수강생수는 분류별 등록 기준이라, 여러 분류를 동시에 듣는 학생은 중복 집계됩니다. (전체 재원생수는 통계 탭에서 확인)"]));
-    wrap.appendChild(stickyGroupWrap);
-  }
 
   const attCard=D({className:"card"});
   const cardHead=D({className:"card-head"});
@@ -2877,7 +2867,24 @@ function renderAtt(){
   mnav.appendChild(Bt({style:{width:"30px",height:"30px",borderRadius:"8px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"14px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,-1);render();}},["◀"]));
   mnav.appendChild(Sp({className:"month-lbl"},[ymLabel(S.attMonth)]));
   mnav.appendChild(Bt({style:{width:"30px",height:"30px",borderRadius:"8px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"14px"},onClick:()=>{S.attMonth=ymAdd(S.attMonth,1);render();}},["▶"]));
-  cardHead.appendChild(mnav);attCard.appendChild(cardHead);
+  cardHead.appendChild(mnav);
+
+  if(src==="main"){
+    const hdrEl=document.querySelector("header");
+    const hdrH=hdrEl?hdrEl.offsetHeight:96;
+    const stickyGroupWrap=D({style:{position:"sticky",top:hdrH+"px",zIndex:"25",background:"#f5f3ee",paddingBottom:"6px",marginBottom:"2px",boxShadow:"0 4px 10px -6px rgba(0,0,0,.15)"}});
+    const groupHead=D({style:{fontWeight:"800",fontSize:"13px",color:TM,margin:"4px 2px"}},["📂 분류별 보기 (클릭해서 전환)"]);
+    stickyGroupWrap.appendChild(groupHead);
+    stickyGroupWrap.appendChild(renderAttGroupCards());
+    stickyGroupWrap.appendChild(D({style:{fontSize:"10px",color:"#ccc",margin:"2px 2px 0"}},["※ 수강생수는 분류별 등록 기준이라, 여러 분류를 동시에 듣는 학생은 중복 집계됩니다. (전체 재원생수는 통계 탭에서 확인)"]));
+    // 카드 제목+정규/특강 토글+월이동 줄도 같은 카드 형태로 함께 고정
+    const stuckCardHead=D({className:"card",style:{marginTop:"8px"}});
+    stuckCardHead.appendChild(cardHead);
+    stickyGroupWrap.appendChild(stuckCardHead);
+    wrap.appendChild(stickyGroupWrap);
+  } else {
+    attCard.appendChild(cardHead);
+  }
 
   if(src==="main"){
     attCard.appendChild(buildAttendanceTableEl(activeGroup.cats,"main",activeGroup.gradeSplit?new Set(activeGroup.cats):new Set(),activeGroup.includeMakeupOnly));
