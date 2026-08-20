@@ -2412,11 +2412,9 @@ function renderCombinedStatCard(){
   return card;
 }
 
-function buildScheduleCard(src){
+function buildScheduleCardHead(src){
   const store=getStore(src);
-  const{cmap,smap}=buildCellMaps(src);
   const isSpecial=src==="special";
-
   const ttCard=D({className:"card"});
   const ttHead=D({className:"card-head"});
   const headLeft=D({style:{display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"}});
@@ -2433,7 +2431,14 @@ function buildScheduleCard(src){
   store.cats.forEach(c=>{const cc=store.cc[c.key];legWrap.appendChild(Sp({className:"leg-badge",style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`}},[c.label]));});
   legWrap.appendChild(Sp({className:"no-print",style:{color:"#ccc",fontSize:"11px"}},["· 클릭 편집 · 드래그 이동"]));
   ttHead.appendChild(legWrap);ttCard.appendChild(ttHead);
+  return ttCard;
+}
+function buildScheduleCardGrid(src){
+  const store=getStore(src);
+  const{cmap,smap}=buildCellMaps(src);
+  const isSpecial=src==="special";
 
+  const ttCard=D({className:"card"});
   const ttWrap=D({className:"tt-wrap"});
   const table=h("table",{className:"tt"});
   const thead=h("thead",{});const tr0=h("tr",{});
@@ -2656,12 +2661,20 @@ function renderPaymentDueCard(){
 function renderTT(){
   const wrap=D({});
   if(S.view==="main"){
-    const topGrid=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:"16px"}});
+    const hdrEl=document.querySelector("header");
+    const hdrH=hdrEl?hdrEl.offsetHeight:96;
+    const stickyWrap=D({style:{position:"sticky",top:hdrH+"px",zIndex:"25",background:"#f5f3ee",paddingBottom:"6px",boxShadow:"0 4px 10px -6px rgba(0,0,0,.15)"}});
+    stickyWrap.setAttribute("id","ttStickyWrap");
+    const topGrid=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:"16px",marginBottom:"10px"}});
     topGrid.appendChild(renderTodayCard());
     topGrid.appendChild(renderScheduleCalendar());
-    wrap.appendChild(topGrid);
+    stickyWrap.appendChild(topGrid);
+    stickyWrap.appendChild(buildScheduleCardHead(S.view));
+    wrap.appendChild(stickyWrap);
+  } else {
+    wrap.appendChild(buildScheduleCardHead(S.view));
   }
-  wrap.appendChild(buildScheduleCard(S.view));
+  wrap.appendChild(buildScheduleCardGrid(S.view));
   return wrap;
 }
 
@@ -3147,12 +3160,25 @@ function render(){
 
   // 출결 탭(정규): 헤더+분류별보기 영역이 실제로 차지하는 높이를 측정해서
   // 출결표 요일 헤더행이 그 바로 아래에 정확히 이어붙어 고정되도록 설정한다.
+  // (offsetTop은 스크롤된 상태에서 sticky 요소 기준 부정확할 수 있어, 높이값만 더해서 계산)
   if(S.tab==="att"&&(S.attView||"main")==="main"){
+    const hdrEl0=document.querySelector("header");
+    const hdrH0=hdrEl0?hdrEl0.offsetHeight:96;
     const groupWrap=document.getElementById("attStickyGroupWrap");
     if(groupWrap){
-      const offset=groupWrap.offsetTop+groupWrap.offsetHeight;
+      const offset=hdrH0+groupWrap.offsetHeight;
       document.querySelectorAll("table.att-tbl thead th").forEach(th=>{th.style.top=offset+"px";});
     }
+  }
+  // 시간표 탭: 상단 고정영역(오늘수업/월별일정/시간표 헤더) 실제 높이만큼을 제외한
+  // 나머지 공간을 시간표 그리드 스크롤 박스 높이로 정확히 맞춘다.
+  if(S.tab==="tt"){
+    const hdrEl=document.querySelector("header");
+    const hdrH=hdrEl?hdrEl.offsetHeight:96;
+    const ttStickyWrap=document.getElementById("ttStickyWrap");
+    const stickyH=ttStickyWrap?ttStickyWrap.offsetHeight:0;
+    const ttWrapEl=document.querySelector(".tt-wrap");
+    if(ttWrapEl)ttWrapEl.style.maxHeight="calc(100vh - "+(hdrH+stickyH+20)+"px)";
   }
 
   scheduleAutoSave();
