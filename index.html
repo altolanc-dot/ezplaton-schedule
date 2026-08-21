@@ -2699,6 +2699,12 @@ function renderPaymentDueCard(){
 }
 
 // ── 탭: 아란이/재원이(자녀 개인 시간표) ─────────────────────
+function formatKidTime(tk){
+  const[ap,hm]=tk.split(" ");
+  let[hh,mm]=hm.split(":").map(Number);
+  if(ap==="PM"&&hh>12)hh-=12;
+  return(ap==="AM"?"오전 ":"오후 ")+hh+":"+String(mm).padStart(2,"0");
+}
 function getKidData(kidKey){
   if(!S.kids[kidKey])S.kids[kidKey]={sch:[],memo:{}};
   if(!S.kids[kidKey].sch)S.kids[kidKey].sch=[];
@@ -2788,11 +2794,14 @@ function renderKidCalendar(kidKey){
   card.appendChild(body);
 
   const memoBox=D({style:{padding:"0 16px 16px"}});
-  memoBox.appendChild(D({style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}},[
-    Sp({style:{fontSize:"12px",fontWeight:"800",color:TM}},[selDate+" 메모"]),
-    Bt({style:{border:"none",background:"none",color:GOLD,fontSize:"11px",cursor:"pointer",textDecoration:"underline"},onClick:()=>openKidMemoModal(kidKey,selDate)},["✏ 편집"])
-  ]));
-  memoBox.appendChild(D({style:{fontSize:"13px",color:data.memo[selDate]?TM:"#ccc",whiteSpace:"pre-wrap",border:`1px dashed ${BORDER}`,borderRadius:"8px",padding:"8px 10px"}},[data.memo[selDate]||"등록된 메모가 없습니다."]));
+  memoBox.appendChild(Sp({style:{fontSize:"12px",fontWeight:"800",color:TM,display:"block",marginBottom:"6px"}},[selDate+" 메모"]));
+  const memoTa=Ta({className:"field-input",rows:"3",placeholder:"여기에 바로 입력하세요...",style:{fontSize:"13px"}},[data.memo[selDate]||""]);
+  memoTa.addEventListener("blur",()=>{
+    const v=memoTa.value.trim();
+    if(v)data.memo[selDate]=v;else delete data.memo[selDate];
+    scheduleAutoSave();
+  });
+  memoBox.appendChild(memoTa);
   card.appendChild(memoBox);
   return card;
 }
@@ -2843,7 +2852,7 @@ function buildKidScheduleGrid(kidKey){
   KTG.forEach(grp=>{
     grp.keys.forEach((tk,ti)=>{
       const si=KSL.find(s=>s.key===tk);const isHour=si?.hr;
-      const tr=h("tr",{style:{height:isHour?"52px":"36px"}});
+      const tr=h("tr",{style:{height:isHour?"26px":"18px"}});
       if(ti===0){tr.appendChild(h("td",{rowspan:String(grp.keys.length),className:"ap-col",style:{background:grp.lbl==="AM"?"#eef4ff":"#fff5eb",color:grp.lbl==="AM"?"#5580b8":"#c07030"}},[grp.lbl]));}
       tr.appendChild(h("td",{className:"time-col"},[isHour?tk.replace(/[AP]M /,""):" "]));
       DAYS.forEach(d=>{
@@ -2890,18 +2899,35 @@ function openKidCellModal(kidKey,time,day,editId){
   modal.appendChild(fLbl("내용"));
   const labelInp=Inp({className:"field-input",placeholder:"예) 수학학원, 축구교실, 병원",value:editing?editing.label:"",style:{marginBottom:"12px"}});
   modal.appendChild(labelInp);
-  modal.appendChild(fLbl("길이"));
-  const spanRow=D({style:{display:"flex",gap:"6px",marginBottom:"14px"}});
-  let selSpan=editing?(editing.span||1):2;
-  const spanOpts=[{v:1,l:"30분"},{v:2,l:"1시간"},{v:3,l:"1.5시간"},{v:4,l:"2시간"}];
-  function buildSpanRow(){
-    spanRow.innerHTML="";
-    spanOpts.forEach(o=>{
-      const sel=selSpan===o.v;
-      spanRow.appendChild(Bt({style:{flex:"1",padding:"7px",borderRadius:"8px",border:`1.5px solid ${sel?GOLD:BORDER}`,background:sel?"#f5edd8":"#faf8f4",color:sel?GOLD:TS,fontWeight:sel?"800":"400",fontSize:"12px"},onClick:()=>{selSpan=o.v;buildSpanRow();}},[o.l]));
-    });
+  modal.appendChild(fLbl("시작 시간"));
+  const startIdx0=KAK.indexOf(time);
+  const startSel=h("select",{className:"field-input",style:{marginBottom:"12px"}});
+  KAK.forEach((tk,i)=>{
+    const opt=h("option",{value:String(i)},[formatKidTime(tk)]);
+    if(i===startIdx0)opt.setAttribute("selected","true");
+    startSel.appendChild(opt);
+  });
+  modal.appendChild(startSel);
+  modal.appendChild(fLbl("종료 시간"));
+  const endSel=h("select",{className:"field-input",style:{marginBottom:"14px"}});
+  function buildEndOptions(){
+    endSel.innerHTML="";
+    const sIdx=parseInt(startSel.value,10);
+    // 시작시간 다음 슬롯부터 하루 끝까지 전부 종료시간 후보로 제공 (학교처럼 긴 일정도 선택 가능)
+    for(let i=sIdx+1;i<=KAK.length;i++){
+      const label=i<KAK.length?formatKidTime(KAK[i]):formatKidTime("PM 22:30");
+      const opt=h("option",{value:String(i)},[label]);
+      endSel.appendChild(opt);
+    }
+    // 기존 편집 중이면 원래 길이만큼 기본 선택, 신규면 1시간(2칸) 기본값
+    const defaultSpan=editing?(editing.span||2):2;
+    const defaultEndIdx=Math.min(sIdx+defaultSpan,KAK.length);
+    const target=endSel.querySelector(`option[value="${defaultEndIdx}"]`);
+    if(target)target.setAttribute("selected","true");
   }
-  buildSpanRow();modal.appendChild(spanRow);
+  startSel.addEventListener("change",buildEndOptions);
+  buildEndOptions();
+  modal.appendChild(endSel);
   const br=D({className:"modal-row"});
   if(editing){
     br.appendChild(Bt({className:"btn btn-ghost",style:{color:"#d04040"},onClick:()=>{
@@ -2912,7 +2938,11 @@ function openKidCellModal(kidKey,time,day,editId){
   br.appendChild(Bt({className:"btn btn-primary",onClick:()=>{
     const label=labelInp.value.trim();
     if(!label){ov.remove();return;}
-    const entry={id:editing?editing.id:nid4(),time,day,cat:selectedCat,label,span:selSpan};
+    const sIdx=parseInt(startSel.value,10);
+    const eIdx=parseInt(endSel.value,10);
+    const newTime=KAK[sIdx];
+    const newSpan=Math.max(1,eIdx-sIdx);
+    const entry={id:editing?editing.id:nid4(),time:newTime,day,cat:selectedCat,label,span:newSpan};
     if(editing)data.sch=data.sch.map(s=>s.id===editId?entry:s);
     else data.sch=[...data.sch,entry];
     ov.remove();render();
