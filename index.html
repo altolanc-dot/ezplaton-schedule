@@ -2794,16 +2794,49 @@ function renderKidCalendar(kidKey){
   card.appendChild(body);
 
   const memoBox=D({style:{padding:"0 16px 16px"}});
-  memoBox.appendChild(Sp({style:{fontSize:"12px",fontWeight:"800",color:TM,display:"block",marginBottom:"6px"}},[selDate+" 메모"]));
-  const memoTa=Ta({className:"field-input",rows:"3",placeholder:"여기에 바로 입력하세요...",style:{fontSize:"13px"}},[data.memo[selDate]||""]);
-  memoTa.addEventListener("blur",()=>{
-    const v=memoTa.value.trim();
-    if(v)data.memo[selDate]=v;else delete data.memo[selDate];
-    scheduleAutoSave();
+  memoBox.appendChild(D({style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}},[
+    Sp({style:{fontSize:"12px",fontWeight:"800",color:TM}},[selDate+" 메모"]),
+    Bt({title:"메모 추가",style:{width:"22px",height:"22px",borderRadius:"6px",border:`1px solid ${BORDER}`,background:"#f5edd8",color:GOLD,fontWeight:"900",fontSize:"14px",lineHeight:"1",cursor:"pointer"},onClick:()=>{
+      const list=getKidMemoList(data,selDate);
+      list.push("");
+      data.memo[selDate]=list;
+      render();
+    }},["+"])
+  ]));
+  const memoList=getKidMemoList(data,selDate);
+  const displayList=memoList.length?memoList:[""];
+  displayList.forEach((txt,idx)=>{
+    const row=D({style:{display:"flex",gap:"6px",marginBottom:"6px",alignItems:"flex-start"}});
+    const ta=Ta({className:"field-input",rows:"3",placeholder:idx===0?"여기에 바로 입력하세요...":"추가 메모...",style:{fontSize:"13px",flex:"1"}},[txt]);
+    ta.addEventListener("blur",()=>{
+      const list=getKidMemoList(data,selDate);
+      while(list.length<=idx)list.push("");
+      list[idx]=ta.value.trim();
+      const nonEmpty=list.filter(v=>v!=="");
+      if(nonEmpty.length)data.memo[selDate]=nonEmpty;
+      else delete data.memo[selDate];
+      scheduleAutoSave();
+    });
+    row.appendChild(ta);
+    if(displayList.length>1){
+      row.appendChild(Bt({title:"이 메모 삭제",style:{border:"none",background:"none",color:"#d04040",fontSize:"16px",cursor:"pointer",padding:"4px"},onClick:()=>{
+        const list=getKidMemoList(data,selDate);
+        list.splice(idx,1);
+        if(list.length)data.memo[selDate]=list;else delete data.memo[selDate];
+        render();
+      }},["×"]));
+    }
+    memoBox.appendChild(row);
   });
-  memoBox.appendChild(memoTa);
   card.appendChild(memoBox);
   return card;
+}
+// data.memo[dateKey]는 문자열 배열. 과거(문자열 하나) 데이터도 배열로 안전하게 변환해서 반환한다.
+function getKidMemoList(data,dateKey){
+  const v=data.memo[dateKey];
+  if(!v)return[];
+  if(Array.isArray(v))return v;
+  return[v];
 }
 function openKidMemoModal(kidKey,dateKey){
   const data=getKidData(kidKey);
@@ -2840,8 +2873,10 @@ function buildKidScheduleGrid(kidKey){
     for(let i=1;i<(s.span||1);i++){const nk=KAK[idx+i];if(nk)smap[`${nk}_${s.day}`]=true;}
   });
 
-  const ttWrap=D({className:"tt-wrap"});
+  const ttWrap=D({className:"tt-wrap",style:{overflowY:"hidden"}});
+  ttWrap.setAttribute("id","kidTtWrap");
   const table=h("table",{className:"tt"});
+  table.setAttribute("id","kidTtTable");
   const thead=h("thead",{});const tr0=h("tr",{});
   tr0.appendChild(h("th",{rowspan:"2",style:{background:"#1b2540",width:"18px"}}));
   tr0.appendChild(h("th",{rowspan:"2",style:{background:"#1b2540",color:"#cfd6ea",width:"48px",fontSize:"11px",textAlign:"center"}},["시간"]));
@@ -3489,6 +3524,19 @@ function render(){
     const stickyH=ttStickyWrap?ttStickyWrap.offsetHeight:0;
     const ttWrapEl=document.querySelector(".tt-wrap");
     if(ttWrapEl)ttWrapEl.style.maxHeight="calc(100vh - "+(hdrH+stickyH+20)+"px)";
+  }
+  // 아란이/재원이 탭: 남은 화면 높이를 정확히 측정해서 시간표 테이블 자체를 그 높이로 늘려,
+  // 행들이 비례해서 커지며 화면에 딱 맞도록(스크롤 없이) 한다.
+  if(S.tab&&S.tab.indexOf("kid_")===0){
+    const kidWrapEl=document.getElementById("kidTtWrap");
+    const kidTableEl=document.getElementById("kidTtTable");
+    if(kidWrapEl&&kidTableEl){
+      const rect=kidWrapEl.getBoundingClientRect();
+      const avail=Math.max(300,window.innerHeight-rect.top-20);
+      kidTableEl.style.height=avail+"px";
+      kidWrapEl.style.maxHeight=avail+"px";
+      kidWrapEl.style.overflowY="auto";
+    }
   }
 
   scheduleAutoSave();
