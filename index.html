@@ -268,6 +268,7 @@ function getStudentLevel(s){
   return LEVEL_MAP[s.cat]||"초등";
 }
 const GOLD="#a3791f",BORDER="#ddd8c8",TS="#888",TM="#2c2c2c";
+const STAT_PASSWORD="1101"; // 통계 탭 접근 비밀번호
 const DAYS=["월","화","수","목","금","토","일"];
 const GROUPS=[{cats:["초등_플라톤","초등_이지"]},{cats:["중등_플라톤","중등_이지"]},{cats:["중등_이지수능","고등_이지수능"]},{cats:["고등_개인"]}];
 const SK="ezp_v5_data";
@@ -411,6 +412,7 @@ let S={
   attGroup:"platon", // 출결 탭에서 선택된 분류(전체/플라톤/이지국어/이지수능/개인), 기본은 플라톤
   hdrOtherOpen:false, // 헤더 "기타기능" 드롭다운 열림 여부
   statOpenCat:"초등_플라톤", // 통계탭 "세부 학생현황"에서 기본으로 펼쳐서 보여줄 분류
+  statUnlocked:false, // 통계탭 비밀번호 인증 여부 (새로고침시 다시 잠김, 세션에만 유지)
   saveStatus:"",
   loaded:false,
   search:"",
@@ -2712,14 +2714,19 @@ function getKidData(kidKey){
   return S.kids[kidKey];
 }
 function renderKidTab(kidKey){
-  const wrap=D({style:{display:"grid",gridTemplateColumns:"340px 1fr",gap:"16px",alignItems:"start"}});
   const hdrEl=document.querySelector("header");
   const hdrH=hdrEl?hdrEl.offsetHeight:96;
-  const leftCol=D({style:{display:"flex",flexDirection:"column",gap:"16px",position:"sticky",top:hdrH+"px"}});
+  // 왼쪽/오른쪽을 flex로 나누고 각각 독립적으로 스크롤되게 한다.
+  // wrap 자체에도 overflowY:auto를 남겨둬서, 높이 계산이 조금 어긋나도 내용이 잘려서
+  // "사라지는" 일 없이 최소한 스크롤해서라도 볼 수 있게 안전장치를 둔다.
+  const wrap=D({style:{display:"flex",gap:"16px",alignItems:"stretch",height:`calc(100vh - ${hdrH}px - 40px)`,minHeight:"420px",overflowY:"auto"}});
+  const leftCol=D({style:{width:"340px",flexShrink:"0",display:"flex",flexDirection:"column",gap:"16px",overflowY:"auto",minHeight:"0"}});
   leftCol.appendChild(renderKidTodayCard(kidKey));
   leftCol.appendChild(renderKidCalendar(kidKey));
   wrap.appendChild(leftCol);
-  wrap.appendChild(buildKidScheduleGrid(kidKey));
+  const rightCol=D({style:{flex:"1",minWidth:"0",minHeight:"0",display:"flex",flexDirection:"column"}});
+  rightCol.appendChild(buildKidScheduleGrid(kidKey));
+  wrap.appendChild(rightCol);
   return wrap;
 }
 // ── 왼쪽: 오늘 일정 카드 ──
@@ -2862,8 +2869,8 @@ function openKidMemoModal(kidKey,dateKey){
 function buildKidScheduleGrid(kidKey){
   const data=getKidData(kidKey);
   const kidInfo=KID_LIST.find(k=>k.key===kidKey);
-  const card=D({className:"card"});
-  const head=D({className:"card-head"});
+  const card=D({className:"card",style:{height:"100%",minHeight:"0",display:"flex",flexDirection:"column"}});
+  const head=D({className:"card-head",style:{flexShrink:"0"}});
   head.appendChild(Sp({className:"card-title"},[(kidInfo?.label||kidKey)+" 주간 시간표"]));
   const legWrap=D({style:{display:"flex",gap:"5px",flexWrap:"wrap",alignItems:"center"}});
   KID_CATS.forEach(c=>{const cc=KID_CC[c.key];legWrap.appendChild(Sp({className:"leg-badge",style:{background:cc.bg,color:cc.t,border:`1px solid ${cc.bd}`}},[c.label]));});
@@ -2877,10 +2884,10 @@ function buildKidScheduleGrid(kidKey){
     for(let i=1;i<(s.span||1);i++){const nk=KAK[idx+i];if(nk)smap[`${nk}_${s.day}`]=true;}
   });
 
-  const ttWrap=D({className:"tt-wrap",style:{overflowY:"hidden"}});
-  ttWrap.setAttribute("id","kidTtWrap");
+  // flex:1로 남은 공간을 채우면서 이 박스 안에서만 스크롤(요일 헤더는 top:0로 고정).
+  // 안전장치로 max-height도 같이 둬서, flex 계산이 어긋나도 최소한 화면 안에서 스크롤 가능.
+  const ttWrap=D({className:"tt-wrap",style:{flex:"1",minHeight:"0",overflowY:"auto",maxHeight:"calc(100vh - 260px)"}});
   const table=h("table",{className:"tt"});
-  table.setAttribute("id","kidTtTable");
   const thead=h("thead",{});const tr0=h("tr",{});
   tr0.appendChild(h("th",{rowspan:"2",style:{background:"#1b2540",width:"18px"}}));
   tr0.appendChild(h("th",{rowspan:"2",style:{background:"#1b2540",color:"#cfd6ea",width:"48px",fontSize:"11px",textAlign:"center"}},["시간"]));
@@ -3181,12 +3188,11 @@ function renderAttGroupCards(){
       D({style:{fontSize:big?"21px":"15px",fontWeight:"900",color:color||TM,lineHeight:"1.1"}},[val]),
       D({style:{fontSize:"11px",color:"#aaa",marginTop:"2px",fontWeight:"700"}},[label])
     ]);
-    const statGrid=D({style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"4px",background:active?"rgba(255,255,255,.5)":"#f5f3ee",borderRadius:"8px",padding:"8px 2px"}});
+    const statGrid=D({style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"4px",background:active?"rgba(255,255,255,.5)":"#f5f3ee",borderRadius:"8px",padding:"8px 2px"}});
     statGrid.appendChild(miniItem("수강생수",sum.count+"명",GOLD,true));
     statGrid.appendChild(miniItem("출석",sum.O+"회","#3a9a5c"));
     statGrid.appendChild(miniItem("결석",sum.X+"회","#d04040"));
     statGrid.appendChild(miniItem("보강",sum.Dv+"회","#e08020"));
-    statGrid.appendChild(miniItem("금액",(sum.revenue/10000).toFixed(0)+"만",GOLD));
     card.appendChild(statGrid);
     row.appendChild(card);
   });
@@ -3246,6 +3252,25 @@ function renderAtt(){
 }
 
 // ── 탭: 통계 ────────────────────────────────────────────
+function renderStatLockScreen(){
+  const wrap=D({style:{display:"flex",justifyContent:"center",padding:"60px 20px"}});
+  const card=D({className:"card",style:{width:"320px",padding:"32px 28px",textAlign:"center"}});
+  card.appendChild(D({style:{fontSize:"32px",marginBottom:"10px"}},["🔒"]));
+  card.appendChild(D({style:{fontSize:"15px",fontWeight:"800",color:TM,marginBottom:"16px"}},["통계 탭은 비밀번호가 필요합니다"]));
+  const pwInp=Inp({type:"password",className:"field-input",placeholder:"비밀번호",style:{marginBottom:"10px",textAlign:"center"}});
+  card.appendChild(pwInp);
+  const errMsg=D({style:{fontSize:"12px",color:"#d04040",marginBottom:"10px",minHeight:"16px"}},[""]);
+  card.appendChild(errMsg);
+  const tryUnlock=()=>{
+    if(pwInp.value===STAT_PASSWORD){S.statUnlocked=true;render();}
+    else{errMsg.textContent="비밀번호가 올바르지 않습니다";pwInp.value="";pwInp.focus();}
+  };
+  pwInp.addEventListener("keydown",e=>{if(e.key==="Enter")tryUnlock();});
+  card.appendChild(Bt({className:"btn btn-primary",style:{width:"100%",justifyContent:"center"},onClick:tryUnlock},["🔓 확인"]));
+  wrap.appendChild(card);
+  setTimeout(()=>{pwInp.focus();},50);
+  return wrap;
+}
 function renderChart(){
   chartInst.forEach(c=>{try{c.destroy();}catch(e){}});chartInst=[];
   const isSpecialStat=(S.statView||"main")==="special";
@@ -3501,10 +3526,10 @@ function render(){
 
   if(S.tab==="tt")mainEl.appendChild(renderTT());
   else if(S.tab==="att")mainEl.appendChild(renderAtt());
-  else if(S.tab==="chart")mainEl.appendChild(renderChart());
+  else if(S.tab==="chart")mainEl.appendChild(S.statUnlocked?renderChart():renderStatLockScreen());
   else if(S.tab==="kid_아란")mainEl.appendChild(renderKidTab("아란"));
   else if(S.tab==="kid_재원")mainEl.appendChild(renderKidTab("재원"));
-  else mainEl.appendChild(renderChart());
+  else mainEl.appendChild(S.statUnlocked?renderChart():renderStatLockScreen());
 
   root.appendChild(mainEl);
 
@@ -3528,19 +3553,6 @@ function render(){
     const stickyH=ttStickyWrap?ttStickyWrap.offsetHeight:0;
     const ttWrapEl=document.querySelector(".tt-wrap");
     if(ttWrapEl)ttWrapEl.style.maxHeight="calc(100vh - "+(hdrH+stickyH+20)+"px)";
-  }
-  // 아란이/재원이 탭: 남은 화면 높이를 정확히 측정해서 시간표 테이블 자체를 그 높이로 늘려,
-  // 행들이 비례해서 커지며 화면에 딱 맞도록(스크롤 없이) 한다.
-  if(S.tab&&S.tab.indexOf("kid_")===0){
-    const kidWrapEl=document.getElementById("kidTtWrap");
-    const kidTableEl=document.getElementById("kidTtTable");
-    if(kidWrapEl&&kidTableEl){
-      const rect=kidWrapEl.getBoundingClientRect();
-      const avail=Math.max(300,window.innerHeight-rect.top-20);
-      kidTableEl.style.height=avail+"px";
-      kidWrapEl.style.maxHeight=avail+"px";
-      kidWrapEl.style.overflowY="auto";
-    }
   }
 
   scheduleAutoSave();
