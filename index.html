@@ -3047,11 +3047,11 @@ function renderTT(){
   const wrap=D({});
   if(S.view==="main"){
     // 오늘 수업 + 월별 주요일정은 이제 고정하지 않고 일반적으로 스크롤되어 올라간다.
-    const topGrid=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"16px",marginBottom:"10px"}});
+    const topGrid=D({className:"no-print",style:{display:"grid",gridTemplateColumns:"3fr 3fr 1fr 1fr",gap:"16px",marginBottom:"10px"}});
     topGrid.appendChild(renderTodayCard());
+    topGrid.appendChild(renderScheduleCalendar());
     topGrid.appendChild(renderKidTodayCard("아란",false));
     topGrid.appendChild(renderKidTodayCard("재원",false));
-    topGrid.appendChild(renderScheduleCalendar());
     wrap.appendChild(topGrid);
   }
   // "주간 시간표" 제목줄(정규/특강 토글 + 분류 범례)은 화면 상단에 닿으면 고정된다.
