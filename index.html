@@ -1053,7 +1053,7 @@ function renderTodayCard(){
   const card=D({className:"card"});
   const head=D({className:"card-head"});
   const headLeft=D({style:{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}});
-  headLeft.appendChild(Sp({className:"card-title"},["📌 "+(isToday?"오늘 수업":"수업")+" ("+dayName+") · "+(today.getMonth()+1)+"월 "+today.getDate()+"일"+(isToday?"":"")+(activeRound?" · 🏖 특강 "+ROUND_MAP[activeRound].short+" 기간":"")]));
+  headLeft.appendChild(Sp({className:"card-title"},["📌 플라톤 이지국어 "+(isToday?"오늘 수업":"수업")+" ("+dayName+") · "+(today.getMonth()+1)+"월 "+today.getDate()+"일"+(isToday?"":"")+(activeRound?" · 🏖 특강 "+ROUND_MAP[activeRound].short+" 기간":"")]));
   head.appendChild(headLeft);
   const navWrap=D({className:"no-print",style:{display:"flex",alignItems:"center",gap:"4px"}});
   navWrap.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px",cursor:"pointer"},title:"이전 날",onClick:()=>{S.viewDate=addDaysToKey(S.viewDate,-1);S.calMonth=S.viewDate.slice(0,7);render();}},["◀"]));
@@ -2719,17 +2719,14 @@ function getKidData(kidKey){
   return S.kids[kidKey];
 }
 function renderKidTab(kidKey){
-  const hdrEl=document.querySelector("header");
-  const hdrH=hdrEl?hdrEl.offsetHeight:96;
-  // 왼쪽/오른쪽을 flex로 나누고 각각 독립적으로 스크롤되게 한다.
-  // wrap 자체에도 overflowY:auto를 남겨둬서, 높이 계산이 조금 어긋나도 내용이 잘려서
-  // "사라지는" 일 없이 최소한 스크롤해서라도 볼 수 있게 안전장치를 둔다.
-  const wrap=D({style:{display:"flex",gap:"16px",alignItems:"stretch",height:`calc(100vh - ${hdrH}px - 40px)`,minHeight:"420px",overflowY:"auto"}});
-  const leftCol=D({style:{width:"340px",flexShrink:"0",display:"flex",flexDirection:"column",gap:"16px",overflowY:"auto",minHeight:"0"}});
+  // 왼쪽/오른쪽을 각각 독립적으로 스크롤되게 한다. 복잡한 calc() 계산 대신
+  // 단순한 vh 단위 max-height를 써서, 계산 오차 없이 항상 확실하게 스크롤이 생기도록 한다.
+  const wrap=D({style:{display:"flex",gap:"16px",alignItems:"flex-start"}});
+  const leftCol=D({style:{width:"340px",flexShrink:"0",display:"flex",flexDirection:"column",gap:"16px",maxHeight:"85vh",overflowY:"auto",paddingRight:"4px"}});
   leftCol.appendChild(renderKidTodayCard(kidKey));
   leftCol.appendChild(renderKidCalendar(kidKey));
   wrap.appendChild(leftCol);
-  const rightCol=D({style:{flex:"1",minWidth:"0",minHeight:"0",display:"flex",flexDirection:"column"}});
+  const rightCol=D({style:{flex:"1",minWidth:"0"}});
   rightCol.appendChild(buildKidScheduleGrid(kidKey));
   wrap.appendChild(rightCol);
   return wrap;
@@ -2748,7 +2745,7 @@ function renderKidTodayCard(kidKey,showAvatar=true){
     card.appendChild(avatarImg);
   }
   const head=D({className:"card-head"});
-  head.appendChild(Sp({className:"card-title"},[(isToday?"📌 오늘 일정 ("+dayName+")":"📌 "+dayName+"요일 일정")+" · "+viewDate.slice(5).replace("-","월 ")+"일"]));
+  head.appendChild(Sp({className:"card-title"},[(isToday?"📌 "+kidKey+"이 오늘수업 ("+dayName+")":"📌 "+kidKey+"이 "+dayName+"요일 일정")+" · "+viewDate.slice(5).replace("-","월 ")+"일"]));
   const nav=D({className:"month-nav"});
   nav.appendChild(Bt({style:{width:"26px",height:"26px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:"#f5f3ee",color:GOLD,fontWeight:"800",fontSize:"12px"},onClick:()=>{S.kidViewDate=addDaysToKey(S.kidViewDate||toISODate(new Date()),-1);render();}},["◀"]));
   nav.appendChild(Bt({style:{padding:"4px 10px",borderRadius:"7px",border:`1px solid ${BORDER}`,background:isToday?GOLD:"#f5f3ee",color:isToday?"#fff":TS,fontWeight:"700",fontSize:"11px"},onClick:()=>{S.kidViewDate=toISODate(new Date());S.kidCalMonth=toYM(new Date());render();}},["오늘"]));
@@ -2876,7 +2873,7 @@ function openKidMemoModal(kidKey,dateKey){
 function buildKidScheduleGrid(kidKey){
   const data=getKidData(kidKey);
   const kidInfo=KID_LIST.find(k=>k.key===kidKey);
-  const card=D({className:"card",style:{height:"100%",minHeight:"0",display:"flex",flexDirection:"column"}});
+  const card=D({className:"card"});
   const head=D({className:"card-head",style:{flexShrink:"0"}});
   head.appendChild(Sp({className:"card-title"},[(kidInfo?.label||kidKey)+" 주간 시간표"]));
   const legWrap=D({style:{display:"flex",gap:"5px",flexWrap:"wrap",alignItems:"center"}});
