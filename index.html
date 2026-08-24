@@ -2909,7 +2909,6 @@ function buildKidScheduleGrid(kidKey){
           const td=h("td",{rowspan:String(spanV),className:"slot-cell",style:{background:cc.bg,border:`1px solid ${cc.bd}`}});
           const nameLine=D({className:"slot-name",style:{color:cc.t,fontWeight:"800",cursor:"pointer"}},[slot.label]);
           nameLine.addEventListener("click",e=>{e.stopPropagation();openKidCellModal(kidKey,tk,d,slot.id);});
-          td.appendChild(D({className:"slot-grade",style:{color:cc.t}},[slot.cat]));
           td.appendChild(nameLine);
           td.addEventListener("click",()=>openKidCellModal(kidKey,tk,d,slot.id));
           tr.appendChild(td);
