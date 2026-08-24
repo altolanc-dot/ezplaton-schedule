@@ -172,7 +172,7 @@ table.att-tbl tbody tr:hover{background:#f5f3ee;}
   .fee-grid{grid-template-columns:1fr 1fr;}
   .kpi-row{grid-template-columns:1fr 1fr;}
   table.tt{min-width:520px;}
-  table.tt .time-col{font-size:14px;width:44px;}
+  table.tt .time-col{font-size:12px;width:46px;padding:0 3px;}
   .tab-nav{overflow-x:auto;}
   header{flex-direction:column;align-items:flex-start;}
   header .hdr-right,.hdr-pill-group{width:100%;justify-content:flex-start;}
@@ -740,7 +740,7 @@ function renderScheduleCalendar(){
     if(hasMemo)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:GOLD}}));
     if(hasMakeup)dotWrap.appendChild(D({style:{width:"5px",height:"5px",borderRadius:"50%",background:"#e08020"}}));
     if(hasMemo||hasMakeup)cell.appendChild(dotWrap);
-    cell.addEventListener("click",()=>{S.viewDate=dk;render();});
+    cell.addEventListener("click",()=>{S.viewDate=dk;S.kidViewDate=dk;S.kidCalMonth=dk.slice(0,7);render();});
     cell.addEventListener("mouseenter",()=>{if(!isSel)cell.style.background="#f0ece0";});
     cell.addEventListener("mouseleave",()=>{cell.style.background=isSel?"#ece6d5":hasMemo?"#fffbe0":"transparent";});
     row.appendChild(cell);col++;
@@ -2930,10 +2930,15 @@ function buildKidScheduleGrid(kidKey){
   });
 
   // flex:1로 남은 공간을 채우면서 이 박스 안에서만 스크롤(요일 헤더는 top:0로 고정).
-  // 안전장치로 max-height도 같이 둬서, flex 계산이 어긋나도 최소한 화면 안에서 스크롤 가능.
+  // 박스 높이는 화면 높이에 맞춰 고정하고, 행 높이도 그 높이에 맞게 비례 계산해서
+  // 표가 실제로 화면을 꽉 채우도록 한다 (기존엔 행 높이가 고정값이라 화면 아래쪽이 비어 보였음).
   const kidVh=(typeof window!=="undefined"&&window.innerHeight)?window.innerHeight:800;
-  const kidGridMaxH=Math.max(260,kidVh-260)+"px";
-  const ttWrap=D({className:"tt-wrap",style:{flex:"1",minHeight:"0",overflowY:"auto",maxHeight:kidGridMaxH}});
+  const kidGridH=Math.max(400,kidVh-260)+"px";
+  const ttWrap=D({className:"tt-wrap",style:{flex:"1",minHeight:"0",overflowY:"auto",height:kidGridH,maxHeight:kidGridH}});
+  const KID_HOUR_ROWS=14,KID_HALF_ROWS=13; // buildKidSlots() 기준 고정값
+  const kidBodyH=Math.max(400,kidVh-260)-40; // 헤더(약 40px) 제외한 실제 표 몸통 높이
+  const kidHalfH=Math.max(16,Math.min(40,kidBodyH/(KID_HOUR_ROWS*1.444+KID_HALF_ROWS)));
+  const kidHourH=kidHalfH*1.444;
   const table=h("table",{className:"tt kid-tt"});
   const thead=h("thead",{});const tr0=h("tr",{});
   tr0.appendChild(h("th",{rowspan:"2",style:{background:"#1b2540",width:"18px"}}));
@@ -2945,11 +2950,12 @@ function buildKidScheduleGrid(kidKey){
   KTG.forEach(grp=>{
     grp.keys.forEach((tk,ti)=>{
       const si=KSL.find(s=>s.key===tk);const isHour=si?.hr;
-      const tr=h("tr",{style:{height:isHour?"26px":"18px"}});
+      const tr=h("tr",{style:{height:(isHour?kidHourH:kidHalfH)+"px"}});
       if(ti===0){tr.appendChild(h("td",{rowspan:String(grp.keys.length),className:"ap-col",style:{background:grp.lbl==="AM"?"#eef4ff":"#fff5eb",color:grp.lbl==="AM"?"#5580b8":"#c07030"}},[grp.lbl]));}
       tr.appendChild(h("td",{className:"time-col"},[isHour?tk.replace(/[AP]M /,""):" "]));
       DAYS.forEach(d=>{
         const k=`${tk}_${d}`;if(smap[k])return;
+
         const slot=cmap[k];const has=!!slot;
         const cc=has?(KID_CC[slot.cat]||KID_CC["기타"]):null;const spanV=has?(slot.span||1):1;
         if(has){
