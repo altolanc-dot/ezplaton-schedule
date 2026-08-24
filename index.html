@@ -2719,10 +2719,12 @@ function getKidData(kidKey){
   return S.kids[kidKey];
 }
 function renderKidTab(kidKey){
-  // 왼쪽/오른쪽을 각각 독립적으로 스크롤되게 한다. 복잡한 calc() 계산 대신
-  // 단순한 vh 단위 max-height를 써서, 계산 오차 없이 항상 확실하게 스크롤이 생기도록 한다.
+  // 왼쪽/오른쪽을 각각 독립적으로 스크롤되게 한다. window.innerHeight를 직접 측정해서
+  // 픽셀 단위로 명시적으로 max-height를 지정 - 화면 크기가 작아져도 확실하게 스크롤이 생긴다.
+  const vh=(typeof window!=="undefined"&&window.innerHeight)?window.innerHeight:800;
+  const leftMaxH=Math.max(260,Math.round(vh*0.7))+"px";
   const wrap=D({style:{display:"flex",gap:"16px",alignItems:"flex-start"}});
-  const leftCol=D({style:{width:"340px",flexShrink:"0",display:"flex",flexDirection:"column",gap:"16px",maxHeight:"85vh",overflowY:"auto",paddingRight:"4px"}});
+  const leftCol=D({style:{width:"340px",flexShrink:"0",display:"flex",flexDirection:"column",gap:"16px",maxHeight:leftMaxH,overflowY:"auto",paddingRight:"4px"}});
   leftCol.appendChild(renderKidTodayCard(kidKey));
   leftCol.appendChild(renderKidCalendar(kidKey));
   wrap.appendChild(leftCol);
@@ -2890,7 +2892,9 @@ function buildKidScheduleGrid(kidKey){
 
   // flex:1로 남은 공간을 채우면서 이 박스 안에서만 스크롤(요일 헤더는 top:0로 고정).
   // 안전장치로 max-height도 같이 둬서, flex 계산이 어긋나도 최소한 화면 안에서 스크롤 가능.
-  const ttWrap=D({className:"tt-wrap",style:{flex:"1",minHeight:"0",overflowY:"auto",maxHeight:"calc(100vh - 260px)"}});
+  const kidVh=(typeof window!=="undefined"&&window.innerHeight)?window.innerHeight:800;
+  const kidGridMaxH=Math.max(260,kidVh-260)+"px";
+  const ttWrap=D({className:"tt-wrap",style:{flex:"1",minHeight:"0",overflowY:"auto",maxHeight:kidGridMaxH}});
   const table=h("table",{className:"tt kid-tt"});
   const thead=h("thead",{});const tr0=h("tr",{});
   tr0.appendChild(h("th",{rowspan:"2",style:{background:"#1b2540",width:"18px"}}));
@@ -3565,6 +3569,12 @@ function render(){
 
 // ── 초기화 ───────────────────────────────────────────────
 initLoad();
+// 창 크기가 바뀌면(작은 화면으로 전환 등) 아란이/재원이 탭의 스크롤 영역 높이를 다시 계산한다.
+let resizeTimer=null;
+window.addEventListener("resize",()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{if(S.loaded)render();},150);
+});
 </script>
 <script>
 // ── PWA: 서비스 워커 등록 (홈 화면 설치 지원) ───────────────
