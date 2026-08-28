@@ -482,6 +482,7 @@ function localSave(){
   render();
 }
 let autoSaveTimer=null,isApplyingRemote=false,firstSnapshotReceived=false;
+let lastKnownRemoteTs=0; // 마지막으로 확인한 서버 데이터의 저장 시각(_ts) - 뒤늦게 도착한 옛날 데이터로 덮어쓰기 방지용
 let lastSavedJSON=null; // 마지막으로 저장(전송)한 데이터의 스냅샷 - 불필요한 재저장/재렌더 루프 방지
 const MY_ID=Math.random().toString(36).slice(2)+Date.now();
 function packData(){return{sch:S.sch,bf:S.bf,elemPlatonFees:S.elemPlatonFees,meta:S.meta,att:S.att,memo:S.memo,sched:S.sched,revHistory:S.revHistory,sch2:S.sch2,bf2:S.bf2,meta2:S.meta2,att2:S.att2,makeup:S.makeup,attMigrated:S.attMigrated,kids:S.kids};}
@@ -808,10 +809,28 @@ function scheduleAutoSave(){
   clearTimeout(autoSaveTimer);
   autoSaveTimer=setTimeout(async()=>{
     try{
+      // ⚠️ 덮어쓰기 방지: 저장 직전에 서버의 최신 상태를 한 번 더 확인한다.
+      // (오프라인 상태에서 편집했다가 뒤늦게 온라인 전환되며 큐에 쌓인 옛날 데이터가
+      //  그 사이 다른 기기가 저장한 최신 데이터를 통째로 덮어써버리는 사고를 막기 위함)
+      const freshSnap=await db.collection(FB_COL).doc(FB_DOC).get();
+      const freshData=freshSnap.exists?freshSnap.data():null;
+      if(freshData&&freshData._writer!==MY_ID&&(freshData._ts||0)>lastKnownRemoteTs){
+        // 내가 마지막으로 확인한 것보다 더 최근에 다른 기기가 저장함 → 내 옛날 데이터로 덮어쓰지 않고,
+        // 대신 그 최신 데이터를 받아들인다. (지금 화면에서 편집 중이던 내용은 반영되지 않을 수 있음)
+        isApplyingRemote=true;
+        applyData(freshData);
+        lastSavedJSON=JSON.stringify(packData());
+        lastKnownRemoteTs=freshData._ts||Date.now();
+        S.saveStatus="⚠️ 다른 기기 변경 감지 - 최신 데이터로 갱신됨 "+new Date().toLocaleTimeString();
+        render();
+        isApplyingRemote=false;
+        return;
+      }
       const payload=JSON.parse(cur);
       payload._writer=MY_ID;payload._ts=Date.now();
       await db.collection(FB_COL).doc(FB_DOC).set(payload);
       lastSavedJSON=cur;
+      lastKnownRemoteTs=payload._ts;
       localSave();
       S.saveStatus="🟢 자동 동기화됨 "+new Date().toLocaleTimeString();
     }catch(e){console.error(e);S.saveStatus="❌ 자동 저장 실패";}
@@ -828,6 +847,7 @@ function setupRealtimeSync(){
       return;
     }
     const data=doc.data();
+    if(data._ts)lastKnownRemoteTs=Math.max(lastKnownRemoteTs,data._ts);
     if(data._writer===MY_ID){
       // 내가 보낸 변경의 echo: 다시 그릴 필요 없음
       firstSnapshotReceived=true;
