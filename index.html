@@ -668,6 +668,45 @@ function getRevChangeEntries(){
   out.sort((a,b)=>b.date.localeCompare(a.date)||((b.ts||0)-(a.ts||0)));
   return out;
 }
+// 기록 이전 변동의 원인 추정: 등록일·첫 출석일·현재 교습비를 근거로 추정 (확정 아님)
+function estimateRevCause(e){
+  const delta=e.to-e.from;
+  const dt=new Date(e.date+"T00:00:00");
+  const near=(ds,days)=>{if(!ds)return false;const d=new Date(ds+"T00:00:00");return Math.abs(d-dt)<=days*86400000;};
+  const fees={};
+  calcStudentsByCategory("main").forEach(st=>{if(!st.free)fees[st.name]=(fees[st.name]||0)+st.monthly;});
+  const first={};
+  Object.keys(S.att||{}).forEach(k=>{
+    const n=k.split("◆")[0];
+    Object.keys(S.att[k]).forEach(d=>{if(!first[n]||d<first[n])first[n]=d;});
+  });
+  const pool=Object.keys(fees).filter(n=>fees[n]>0&&(near((S.meta[n]||{}).regDate,7)||near(first[n],7)));
+  const lines=[];
+  if(delta>0){
+    let found=null;
+    const n=pool.length;
+    for(let a=0;a<n&&!found;a++){
+      if(fees[pool[a]]===delta)found=[pool[a]];
+      for(let b=a+1;b<n&&!found;b++){
+        if(fees[pool[a]]+fees[pool[b]]===delta)found=[pool[a],pool[b]];
+        for(let c=b+1;c<n&&!found;c++){
+          if(fees[pool[a]]+fees[pool[b]]+fees[pool[c]]===delta)found=[pool[a],pool[b],pool[c]];
+        }
+      }
+    }
+    if(found){
+      lines.push("신규 등록 추정: "+found.join(", ")+" (등록일·첫 출석일이 이 시기이고 금액이 일치)");
+    } else if(pool.length){
+      lines.push("같은 시기 등록/첫 출석 학생: "+pool.join(", ")+" (금액은 정확히 일치하지 않아 단가·횟수 조정이 함께 있었을 수 있음)");
+    } else {
+      const same=Object.keys(fees).filter(nm=>fees[nm]===delta);
+      lines.push(same.length&&same.length<=3?"금액이 같은 학생: "+same.join(", ")+" (예정→교습 전환 가능성)":"신규 등록, 예정→교습 전환 또는 단가 인상 중 하나로 추정 (학생 특정 불가)");
+    }
+  } else {
+    lines.push("제외/삭제, 예정 전환 또는 무료 전환으로 추정 (현재 명단에 없어 학생 특정 불가)");
+  }
+  return lines;
+}
 function fmtWonDelta(v){return(v>0?"+":v<0?"−":"")+Math.abs(v).toLocaleString()+"원";}
 function renderRevChangeCard(){
   const card=D({className:"card"});
@@ -693,8 +732,15 @@ function renderRevChangeCard(){
     });
     const mh=D({style:{background:"#f5edd8",border:`1px solid ${BORDER}`,borderRadius:"8px",padding:"7px 10px",margin:"6px 0 6px",fontSize:"12px",fontWeight:"800",color:GOLD}});
     mh.appendChild(document.createTextNode(ymLabel(ym)+" · 순변동 "+fmtWonDelta(net)));
-    mh.appendChild(Sp({style:{fontWeight:"600",color:TS,marginLeft:"8px"}},["증가 "+nIn+" · 감소 "+nOut+" · 변경 "+nChg+(nUnk?" · 원인 미기록 "+nUnk+"건":"")]));
+    mh.appendChild(Sp({style:{fontWeight:"600",color:TS,marginLeft:"8px"}},["증가 "+nIn+" · 감소 "+nOut+" · 변경 "+nChg+(nUnk?" · 추정 "+nUnk+"건":"")]));
+    const curYM=toYM(new Date());
+    const isOpen=S.revOpen&&S.revOpen[ym]!==undefined?S.revOpen[ym]:ym===curYM;
+    mh.style.cursor="pointer";
+    mh.style.display="flex";mh.style.alignItems="center";mh.style.justifyContent="space-between";
+    mh.appendChild(Sp({style:{fontSize:"11px",color:GOLD}},[isOpen?"▲":"▼"]));
+    mh.addEventListener("click",()=>{if(!S.revOpen)S.revOpen={};S.revOpen[ym]=!isOpen;render();});
     body.appendChild(mh);
+    const rowsWrap=D({});
     list.forEach(e=>{
       const delta=e.to-e.from;
       const row=D({style:{borderBottom:"1px solid #efe9da",padding:"7px 4px"}});
@@ -704,7 +750,7 @@ function renderRevChangeCard(){
       top.appendChild(Sp({style:{fontSize:"11px",color:TS}},["합계 "+(e.to/10000).toFixed(1)+"만원"]));
       row.appendChild(top);
       if(!e.items){
-        row.appendChild(D({style:{fontSize:"11px",color:"#bbb",marginTop:"2px",paddingLeft:"52px"}},["상세 기록 이전 변동 (원인 미기록)"]));
+        estimateRevCause(e).forEach(t=>row.appendChild(D({style:{fontSize:"12px",color:"#8a6419",marginTop:"2px",paddingLeft:"52px"}},["🔍 "+t])));
       } else {
         const shown=e.items.slice(0,6);
         shown.forEach(i=>{
@@ -715,8 +761,9 @@ function renderRevChangeCard(){
         });
         if(e.items.length>6)row.appendChild(D({style:{fontSize:"11px",color:TS,marginTop:"2px",paddingLeft:"52px"}},["외 "+(e.items.length-6)+"건"]));
       }
-      body.appendChild(row);
+      rowsWrap.appendChild(row);
     });
+    if(isOpen)body.appendChild(rowsWrap);
   });
   card.appendChild(body);
   return card;
